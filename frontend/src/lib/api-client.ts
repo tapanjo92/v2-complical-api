@@ -104,6 +104,12 @@ export const api = {
       apiClient.delete(`/v1/auth/api-keys/${keyId}`),
   },
   
+  // Usage analytics
+  usage: {
+    get: () =>
+      apiClient.get('/v1/auth/usage'),
+  },
+  
   // Deadlines
   deadlines: {
     getGlobal: (params: {

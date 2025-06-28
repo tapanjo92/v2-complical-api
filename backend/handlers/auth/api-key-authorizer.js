@@ -103,6 +103,9 @@ exports.handler = async (event) => {
     
     console.log('Generated wildcard resource:', wildcardResource);
     
+    // Calculate new usage count (current + 1)
+    const newUsageCount = (keyData.usageCount || 0) + 1;
+    
     const policy = generatePolicy(
       keyData.userEmail, // Use email as principal
       'Allow',
@@ -111,6 +114,7 @@ exports.handler = async (event) => {
         apiKeyId: keyData.id,
         userEmail: keyData.userEmail,
         keyName: keyData.name,
+        usageCount: String(newUsageCount), // Include new count in context
       }
     );
 

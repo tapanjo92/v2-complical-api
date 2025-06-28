@@ -84,6 +84,21 @@ export class ApiStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE,
     });
 
+    // Lambda function for usage analytics
+    const usageFunction = new lambda.Function(this, 'UsageFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'auth/usage.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      environment: {
+        API_KEYS_TABLE: props.apiKeysTable.tableName,
+        API_USAGE_TABLE: props.apiUsageTable.tableName,
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+      },
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      tracing: lambda.Tracing.ACTIVE,
+    });
+
     // Lambda function for API key authorizer
     const apiKeyAuthorizerFunction = new lambda.Function(this, 'ApiKeyAuthorizerFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -120,6 +135,8 @@ export class ApiStack extends cdk.Stack {
     props.apiKeysTable.grantReadWriteData(apiKeyAuthorizerFunction); // Need write for usage tracking
     props.apiKeysTable.grantWriteData(processUsageLogsFunction);
     props.apiUsageTable.grantWriteData(processUsageLogsFunction);
+    props.apiKeysTable.grantReadData(usageFunction);
+    props.apiUsageTable.grantReadData(usageFunction);
 
     // Grant Cognito permissions
     authFunction.addToRolePolicy(new iam.PolicyStatement({
@@ -227,6 +244,10 @@ export class ApiStack extends cdk.Stack {
     apiKeysResource.addMethod('POST', new apigateway.LambdaIntegration(apiKeysFunction));
     const apiKeyIdResource = apiKeysResource.addResource('{keyId}');
     apiKeyIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(apiKeysFunction));
+    
+    // Usage endpoint (requires JWT authentication)
+    const usageResource = auth.addResource('usage');
+    usageResource.addMethod('GET', new apigateway.LambdaIntegration(usageFunction));
 
     // Custom authorizer
     const apiKeyAuthorizer = new apigateway.RequestAuthorizer(this, 'ApiKeyAuthorizer', {

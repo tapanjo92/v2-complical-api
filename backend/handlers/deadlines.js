@@ -8,6 +8,9 @@ const TABLE_NAME = process.env.TABLE_NAME;
 
 exports.handler = async (event) => {
   console.log('Request:', JSON.stringify(event, null, 2));
+  
+  // Extract usage count from authorizer context
+  const usageCount = event.requestContext?.authorizer?.usageCount || '0';
 
   try {
     const params = {
@@ -70,7 +73,7 @@ exports.handler = async (event) => {
       query: params,
     };
 
-    return successResponse(response);
+    return successResponse(response, usageCount);
   } catch (error) {
     console.error('Error:', error);
     return errorResponse(500, 'Internal server error');
@@ -219,12 +222,15 @@ function transformDeadline(item) {
   };
 }
 
-function successResponse(data) {
+function successResponse(data, usageCount) {
   return {
     statusCode: 200,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers': 'X-API-Usage-Count, X-API-Usage-Info',
+      'X-API-Usage-Count': usageCount || '0',
+      'X-API-Usage-Info': 'Check X-API-Usage-Count header for current usage',
     },
     body: JSON.stringify(data),
   };

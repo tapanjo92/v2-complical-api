@@ -6,7 +6,6 @@ import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
 import { Link } from '@tanstack/react-router'
 import { Activity, Key, Zap, ArrowRight, TrendingUp } from 'lucide-react'
-
 export const Route = createFileRoute('/_auth/dashboard/')({
   component: DashboardOverview,
 })
@@ -14,18 +13,21 @@ export const Route = createFileRoute('/_auth/dashboard/')({
 function DashboardOverview() {
   const { user } = useAuthStore()
   
-  // Load API keys if not already loaded
-  const { data: apiKeysData } = useQuery({
-    queryKey: ['apiKeys'],
+  // Load usage data from dedicated endpoint
+  const { data: usageData } = useQuery({
+    queryKey: ['usage'],
     queryFn: async () => {
-      const response = await api.apiKeys.list()
+      const response = await api.usage.get()
       return response.data
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 60 * 1000, // 1 minute
+    refetchInterval: 60 * 1000, // Auto-refresh every minute
   })
 
-  const activeKeys = apiKeysData?.apiKeys?.filter((key: any) => key.status === 'active').length || 0
-  const totalUsage = apiKeysData?.apiKeys?.reduce((sum: number, key: any) => sum + (key.usageCount || 0), 0) || 0
+  const activeKeys = usageData?.api_keys?.active || 0
+  const totalUsage = usageData?.current_period?.usage || 0
+  const usageLimit = usageData?.current_period?.limit || 10000
+  const usagePercentage = usageData?.current_period?.percentage || 0
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
@@ -65,7 +67,7 @@ function DashboardOverview() {
           <CardContent>
             <div className="text-2xl font-bold">{totalUsage.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              This billing period
+              {usagePercentage}% of {(usageLimit/1000).toFixed(0)}k limit
             </p>
           </CardContent>
         </Card>
