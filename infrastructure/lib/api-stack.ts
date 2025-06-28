@@ -169,7 +169,7 @@ export class ApiStack extends cdk.Stack {
       defaultCorsPreflightOptions: {
         allowOrigins: props.environment === 'prod' 
           ? ['https://complical.ai', 'https://www.complical.ai']
-          : ['http://localhost:3000', 'http://localhost:3001'],
+          : ['http://localhost:3000', 'http://localhost:3001', 'https://d1v4wmxs6wjlqf.cloudfront.net'],
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-CSRF-Token'],
         allowCredentials: true,

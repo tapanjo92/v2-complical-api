@@ -95,6 +95,15 @@ export class FrontendStack extends cdk.Stack {
 
     this.distributionDomainName = distribution.distributionDomainName;
 
+    // Deploy frontend files to S3
+    new s3deploy.BucketDeployment(this, 'DeployWebsite', {
+      sources: [s3deploy.Source.asset('../frontend/dist')],
+      destinationBucket: frontendBucket,
+      distribution,
+      distributionPaths: ['/*'],
+      memoryLimit: 512,
+    });
+
     // Outputs
     new cdk.CfnOutput(this, 'DistributionDomainName', {
       value: distribution.distributionDomainName,

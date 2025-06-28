@@ -1,13 +1,31 @@
 # V2 CompliCal Infrastructure
 
-This directory contains the AWS CDK infrastructure for deploying the V2 CompliCal frontend.
+This directory contains the AWS CDK infrastructure for deploying the complete V2 CompliCal stack.
 
 ## Architecture
 
-- **S3 Bucket**: Hosts the static React SPA files
-- **CloudFront Distribution**: CDN for global distribution with security headers
-- **Origin Access Identity (OAI)**: Secure access from CloudFront to S3
-- **CloudFront Logs**: Stored in separate S3 bucket with 30-day retention
+The V2 infrastructure consists of 4 stacks:
+
+1. **DynamoDB Stack** (`CompliCal-DynamoDB-{env}`)
+   - Deadlines table
+   - API Keys table
+   - API Usage table
+
+2. **Auth Stack** (`CompliCal-Auth-{env}`)
+   - Cognito User Pool
+   - Cognito User Pool Client
+
+3. **API Stack** (`CompliCal-API-{env}`)
+   - API Gateway REST API
+   - Lambda functions
+   - API Key authorizer
+   - Usage tracking
+
+4. **Frontend Stack** (`CompliCal-Frontend-{env}`)
+   - S3 Bucket for React SPA
+   - CloudFront Distribution
+   - Origin Access Identity (OAI)
+   - CloudFront Logs bucket
 
 ## Features
 

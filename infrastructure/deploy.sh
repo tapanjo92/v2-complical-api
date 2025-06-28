@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# V2 CompliCal Frontend Deployment Script
+# V2 CompliCal Full Stack Deployment Script
 
 set -e
 
-echo "🚀 Starting V2 CompliCal Frontend Deployment..."
+echo "🚀 Starting V2 CompliCal Deployment..."
 
 # Check if running from correct directory
 if [ ! -f "package.json" ]; then
@@ -29,17 +29,19 @@ npm run build
 # Return to infrastructure directory
 cd ../infrastructure
 
-# Bootstrap CDK (only needed once per account/region)
-echo "🥾 Bootstrapping CDK (if needed)..."
-npx cdk bootstrap || true
-
-# Deploy
+# Deploy all stacks
 echo "🚀 Deploying to AWS..."
-npm run deploy
+echo "This will deploy:"
+echo "  - DynamoDB tables"
+echo "  - Cognito authentication" 
+echo "  - API Gateway + Lambda functions"
+echo "  - Frontend (S3 + CloudFront)"
+echo ""
+npx cdk deploy --all --require-approval never
 
 echo "✅ Deployment complete!"
 echo ""
 echo "📝 Next steps:"
-echo "1. Update frontend/.env with your API URL"
-echo "2. Check CloudFront URL in the CDK output"
+echo "1. Check the CDK outputs for API Gateway URL and CloudFront URL"
+echo "2. Update frontend/.env with your API URL if needed"
 echo "3. Wait 5-10 minutes for CloudFront distribution to be fully deployed"

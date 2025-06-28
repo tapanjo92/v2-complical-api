@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/lib/auth-store'
 import { Link } from '@tanstack/react-router'
 import { CalendarDays, Loader2 } from 'lucide-react'
+import { PasswordInput } from '@/components/PasswordInput'
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -87,9 +88,8 @@ function LoginPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   {...register('password')}
                   disabled={isLoading}
                 />

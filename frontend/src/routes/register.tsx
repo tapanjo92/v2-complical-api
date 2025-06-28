@@ -10,10 +10,18 @@ import { toast } from '@/hooks/use-toast'
 import { useAuthStore } from '@/lib/auth-store'
 import { Link } from '@tanstack/react-router'
 import { CalendarDays, Loader2 } from 'lucide-react'
+import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator'
+import { PasswordInput } from '@/components/PasswordInput'
+import { useState } from 'react'
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Password must contain at least one special character'),
   companyName: z.string().min(2, 'Company name is required'),
 })
 
@@ -27,6 +35,7 @@ function RegisterPage() {
   const navigate = useNavigate()
   const register = useAuthStore((state) => state.register)
   const isLoading = useAuthStore((state) => state.isLoading)
+  const [password, setPassword] = useState('')
 
   const {
     register: registerField,
@@ -101,12 +110,14 @@ function RegisterPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
-                  {...registerField('password')}
+                  {...registerField('password', {
+                    onChange: (e) => setPassword(e.target.value)
+                  })}
                   disabled={isLoading}
                 />
+                <PasswordStrengthIndicator password={password} />
                 {errors.password && (
                   <p className="text-sm text-destructive">{errors.password.message}</p>
                 )}

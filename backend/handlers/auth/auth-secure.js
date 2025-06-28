@@ -69,11 +69,13 @@ function getAllowedOrigin(event) {
     'https://www.complical.com',
     'https://app.complical.com',
     'https://d2xoxkdqlbm2pj.cloudfront.net',
+    'https://d1v4wmxs6wjlqf.cloudfront.net', // V2 CloudFront
   ];
   
   // Allow localhost only in dev
-  if (ENVIRONMENT === 'dev') {
+  if (ENVIRONMENT === 'dev' || ENVIRONMENT === 'test') {
     allowedOrigins.push('http://localhost:3000');
+    allowedOrigins.push('http://localhost:3001');
   }
   
   return allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
@@ -359,6 +361,17 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           error: 'User already exists',
           message: 'An account with this email already exists',
+        }),
+      };
+    }
+
+    if (error.name === 'InvalidPasswordException' || error.__type === 'InvalidPasswordException') {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'Invalid password',
+          message: 'Password must be at least 8 characters and include uppercase, lowercase, numbers, and special characters',
         }),
       };
     }
