@@ -1,0 +1,150 @@
+import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { api } from '@/lib/api-client'
+import { useAuthStore } from '@/lib/auth-store'
+import { Link } from '@tanstack/react-router'
+import { Activity, Key, Zap, ArrowRight, TrendingUp } from 'lucide-react'
+
+export const Route = createFileRoute('/_auth/dashboard/')({
+  component: DashboardOverview,
+})
+
+function DashboardOverview() {
+  const { user } = useAuthStore()
+  
+  // Load API keys if not already loaded
+  const { data: apiKeysData } = useQuery({
+    queryKey: ['apiKeys'],
+    queryFn: async () => {
+      const response = await api.apiKeys.list()
+      return response.data
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+
+  const activeKeys = apiKeysData?.apiKeys?.filter((key: any) => key.status === 'active').length || 0
+  const totalUsage = apiKeysData?.apiKeys?.reduce((sum: number, key: any) => sum + (key.usageCount || 0), 0) || 0
+
+  return (
+    <div className="px-4 sm:px-6 lg:px-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">
+          Welcome back{user?.companyName ? `, ${user.companyName}` : ''}!
+        </h1>
+        <p className="mt-2 text-gray-600">
+          Here's an overview of your CompliCal API usage
+        </p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid gap-6 md:grid-cols-3 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Active API Keys
+            </CardTitle>
+            <Key className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{activeKeys}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Out of 5 maximum allowed
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total API Calls
+            </CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalUsage.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              This billing period
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Current Plan
+            </CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Free Tier</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              10,000 requests/month
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid gap-6 md:grid-cols-2 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Get Started with the API</CardTitle>
+            <CardDescription>
+              Create your first API key and start integrating CompliCal
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/dashboard/api-keys">
+              <Button className="w-full">
+                <Key className="h-4 w-4 mr-2" />
+                Manage API Keys
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Explore Documentation</CardTitle>
+            <CardDescription>
+              Learn how to integrate CompliCal into your applications
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/docs">
+              <Button variant="outline" className="w-full">
+                View API Documentation
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Usage Chart Placeholder */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>API Usage Trends</CardTitle>
+              <CardDescription>
+                Your API usage over the last 30 days
+              </CardDescription>
+            </div>
+            <TrendingUp className="h-5 w-5 text-muted-foreground" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex items-center justify-center bg-muted/10 rounded-lg">
+            <p className="text-muted-foreground text-sm">
+              Usage analytics coming soon
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
