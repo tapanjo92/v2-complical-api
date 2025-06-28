@@ -313,6 +313,9 @@ exports.handler = async (event) => {
       const idTokenCookie = createCookie('id_token', refreshResponse.AuthenticationResult.IdToken, COOKIE_CONFIG);
       const accessTokenCookie = createCookie('access_token', refreshResponse.AuthenticationResult.AccessToken, COOKIE_CONFIG);
       
+      // Get user info from the ID token
+      const idTokenPayload = JSON.parse(Buffer.from(refreshResponse.AuthenticationResult.IdToken.split('.')[1], 'base64').toString());
+      
       return {
         statusCode: 200,
         headers: {
@@ -327,6 +330,10 @@ exports.handler = async (event) => {
         },
         body: JSON.stringify({
           message: 'Token refreshed successfully',
+          email: idTokenPayload.email,
+          companyName: idTokenPayload['custom:companyName'],
+          csrfToken: crypto.randomBytes(32).toString('hex'),
+          idToken: refreshResponse.AuthenticationResult.IdToken,
         }),
       };
     }
@@ -383,6 +390,17 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           error: 'Authentication failed',
           message: 'Invalid email or password',
+        }),
+      };
+    }
+
+    if (error.name === 'UserNotFoundException' || error.__type === 'UserNotFoundException') {
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({
+          error: 'User not found',
+          message: 'No account exists with this email. Please register first.',
         }),
       };
     }

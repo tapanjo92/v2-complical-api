@@ -42,9 +42,10 @@ function ApiKeysPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
-      setNewKeyInfo({ key: data.key, id: data.id })
+      setNewKeyInfo({ key: data.apiKey, id: data.id })
       setKeyName('')
       setKeyDescription('')
+      setCreateDialogOpen(false)
       toast({
         title: 'API key created',
         description: 'Make sure to copy your key now. You won\'t be able to see it again!',

@@ -21,6 +21,12 @@ apiClient.interceptors.request.use(
       config.headers['x-api-key'] = devApiKey
     }
     
+    // Add Authorization header with ID token if available
+    const idToken = useAuthStore.getState().idToken
+    if (idToken) {
+      config.headers['Authorization'] = `Bearer ${idToken}`
+    }
+    
     // Add CSRF token if available
     const csrfToken = useAuthStore.getState().csrfToken
     if (csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(config.method?.toUpperCase() || '')) {

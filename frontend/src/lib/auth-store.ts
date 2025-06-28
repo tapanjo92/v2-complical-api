@@ -23,6 +23,7 @@ interface ApiKey {
 interface AuthState {
   user: User | null
   csrfToken: string | null
+  idToken: string | null
   apiKeys: ApiKey[]
   isLoading: boolean
   
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       csrfToken: null,
+      idToken: null,
       apiKeys: [],
       isLoading: false,
       
@@ -50,11 +52,12 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true })
         try {
           const response = await api.auth.login({ email, password })
-          const { email: userEmail, companyName, csrfToken } = response.data
+          const { email: userEmail, companyName, csrfToken, idToken } = response.data
           
           set({
             user: { email: userEmail, companyName },
             csrfToken,
+            idToken,
             isLoading: false,
           })
           
@@ -82,7 +85,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           await api.auth.logout()
         } finally {
-          set({ user: null, csrfToken: null, apiKeys: [] })
+          set({ user: null, csrfToken: null, idToken: null, apiKeys: [] })
           // Clear any stored dev API key
           localStorage.removeItem('complical-dev-key')
         }
@@ -91,15 +94,16 @@ export const useAuthStore = create<AuthState>()(
       refreshAuth: async () => {
         try {
           const response = await api.auth.refresh()
-          const { email, companyName, csrfToken } = response.data
+          const { email, companyName, csrfToken, idToken } = response.data
           
           set({
             user: { email, companyName },
             csrfToken,
+            idToken,
           })
         } catch (error) {
           // If refresh fails, clear auth state
-          set({ user: null, csrfToken: null, apiKeys: [] })
+          set({ user: null, csrfToken: null, idToken: null, apiKeys: [] })
           throw error
         }
       },
@@ -158,9 +162,10 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'complical-auth',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ 
         user: state.user,
+        idToken: state.idToken,
         // Don't persist CSRF token or API keys for security
       }),
     }

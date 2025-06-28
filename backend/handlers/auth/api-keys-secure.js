@@ -34,12 +34,14 @@ function getAllowedOrigin(event) {
     'https://www.complical.com',
     'https://app.complical.com',
     'https://d2xoxkdqlbm2pj.cloudfront.net',
+    'https://d1v4wmxs6wjlqf.cloudfront.net', // V2 CloudFront
   ];
   
   // Allow localhost only in dev
   const environment = process.env.ENVIRONMENT || 'dev';
-  if (environment === 'dev') {
+  if (environment === 'dev' || environment === 'test') {
     allowedOrigins.push('http://localhost:3000');
+    allowedOrigins.push('http://localhost:3001');
   }
   
   return allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
@@ -94,12 +96,20 @@ exports.handler = async (event) => {
   };
 
   try {
-    // Extract JWT from cookies
+    // Extract JWT from cookies or Authorization header
     const cookies = event.headers?.Cookie || event.headers?.cookie || '';
-    const idToken = cookies.split(';').find(c => c.trim().startsWith('id_token='))?.split('=')[1];
+    let idToken = cookies.split(';').find(c => c.trim().startsWith('id_token='))?.split('=')[1];
+    
+    // If not in cookies, check Authorization header
+    if (!idToken) {
+      const authHeader = event.headers?.Authorization || event.headers?.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        idToken = authHeader.substring(7);
+      }
+    }
     
     if (!idToken) {
-      console.log('No id_token cookie found');
+      console.log('No id_token found in cookies or Authorization header');
       return {
         statusCode: 401,
         headers,
