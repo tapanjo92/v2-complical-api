@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+
+# CDK asset staging directory
+.cdk.staging/
+cdk.out/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# AWS
+.aws/
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+out/
+*.js.map
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Frontend specific (if copied)
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+
+# Secrets - NEVER commit these!
+secrets/
+*.key
+*.secret
+config.js
+config.json
