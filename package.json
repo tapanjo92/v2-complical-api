@@ -7,8 +7,7 @@
     "cdk": "cdk",
     "deploy": "cdk deploy --all --require-approval never",
     "destroy": "cdk destroy --all --force",
-    "load-data": "node scripts/load-data.js",
-    "test-api": "node scripts/test-api.js"
+    "load-data": "node scripts/load-data.js"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",

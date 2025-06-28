@@ -1,6 +1,6 @@
-# CompliCal Clean Implementation
+# CompliCal v2 API
 
-A clean implementation of CompliCal with an optimized DynamoDB design that:
+A complete rewrite of CompliCal API with enhanced security and optimized DynamoDB design that:
 - Uses a single coherent data model
 - Has only 1 GSI instead of 3
 - Provides efficient access patterns for all API endpoints
@@ -49,7 +49,7 @@ This design supports all API access patterns:
 ### 1. Install Dependencies
 
 ```bash
-cd clean-implementation
+cd ~/v2-complical-api
 npm install
 ```
 
