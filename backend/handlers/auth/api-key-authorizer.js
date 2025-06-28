@@ -3,7 +3,7 @@ const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb'
 const crypto = require('crypto');
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
+const API_KEYS_TABLE = process.env.TABLE_NAME;
 
 // Helper function to hash API key
 function hashApiKey(apiKey) {

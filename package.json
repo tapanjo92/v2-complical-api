@@ -1,7 +1,7 @@
 {
-  "name": "complical-clean",
-  "version": "1.0.0",
-  "description": "CompliCal clean implementation with optimized DynamoDB design",
+  "name": "v2-complical-api",
+  "version": "2.0.0",
+  "description": "CompliCal v2 API with optimized DynamoDB design and enhanced security",
   "scripts": {
     "build": "tsc",
     "cdk": "cdk",

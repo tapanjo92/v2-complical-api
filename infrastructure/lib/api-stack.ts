@@ -177,9 +177,40 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    // Health check endpoint
+    // Create a dedicated health check Lambda with NO permissions
+    const healthCheckFunction = new lambda.Function(this, 'HealthCheckFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromInline(`
+        exports.handler = async (event) => {
+          return {
+            statusCode: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Content-Type-Options': 'nosniff',
+              'X-Frame-Options': 'DENY',
+              'X-XSS-Protection': '1; mode=block',
+              'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+              'Referrer-Policy': 'strict-origin-when-cross-origin'
+            },
+            body: JSON.stringify({
+              status: 'healthy',
+              service: 'CompliCal API',
+              timestamp: new Date().toISOString()
+            })
+          };
+        };
+      `),
+      timeout: cdk.Duration.seconds(3),
+      memorySize: 128,
+      // NO environment variables
+      // NO IAM permissions beyond basic Lambda execution
+      description: 'Isolated health check endpoint with no data access',
+    });
+
+    // Health check endpoint - using dedicated Lambda with NO data access
     const health = this.api.root.addResource('health');
-    health.addMethod('GET', new apigateway.LambdaIntegration(deadlinesFunction));
+    health.addMethod('GET', new apigateway.LambdaIntegration(healthCheckFunction));
 
     // V1 endpoints
     const v1 = this.api.root.addResource('v1');
@@ -275,12 +306,14 @@ export class ApiStack extends cdk.Stack {
         'apigateway:POST',
         'apigateway:DELETE',
         'apigateway:GET',
+        'apigateway:PUT',
       ],
       resources: [
         `arn:aws:apigateway:${this.region}::/apikeys`,
         `arn:aws:apigateway:${this.region}::/apikeys/*`,
         `arn:aws:apigateway:${this.region}::/usageplans/*/keys`,
         `arn:aws:apigateway:${this.region}::/usageplans/*/keys/*`,
+        `arn:aws:apigateway:${this.region}::/tags/*`,
       ],
     }));
 

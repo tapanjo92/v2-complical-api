@@ -86,37 +86,54 @@ exports.handler = async (event) => {
     console.log('Date range:', { fromDate, toDate });
 
     for (const country of countries) {
-      let params = {
-        TableName: TABLE_NAME,
-        IndexName: 'GSI1',
-        KeyConditionExpression: 'GSI1PK = :pk',
-        ExpressionAttributeValues: {
-          ':pk': `JURISDICTION#${country}`
-        },
-        Limit: query.limit + 100 // Get more to allow for filtering
-      };
+      // For country-wide queries, we need to query multiple months
+      // If specific dates are provided, query those months; otherwise query current year
+      const startDate = fromDate || `${new Date().getFullYear()}-01-01`;
+      const endDate = toDate || `${new Date().getFullYear()}-12-31`;
       
-      console.log('Query params for', country, ':', JSON.stringify(params));
-
-      // Add date filtering if specified
-      if (fromDate && toDate) {
-        params.KeyConditionExpression += ' AND GSI1SK BETWEEN :from AND :to';
-        params.ExpressionAttributeValues[':from'] = fromDate;
-        params.ExpressionAttributeValues[':to'] = toDate;
+      // Generate list of year-months to query
+      const yearMonths = [];
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
+        yearMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
       }
-
-      // Add type filtering
-      if (query.type) {
-        params.FilterExpression = '#type = :type';
-        params.ExpressionAttributeNames = { '#type': 'type' };
-        params.ExpressionAttributeValues[':type'] = query.type.toUpperCase();
-      }
-
-      const result = await docClient.send(new QueryCommand(params));
       
-      console.log(`Query result for ${country}: ${result.Items?.length || 0} items`);
+      console.log(`Querying ${yearMonths.length} months for ${country}`);
       
-      if (result.Items) {
+      // Query each month
+      for (const yearMonth of yearMonths) {
+        let params = {
+          TableName: TABLE_NAME,
+          KeyConditionExpression: 'PK = :pk',
+          ExpressionAttributeValues: {
+            ':pk': `JURISDICTION#${country}#YEARMONTH#${yearMonth}`
+          },
+          Limit: query.limit + 100 // Get more to allow for filtering
+        };
+        
+        // Add date range filtering on SK if needed
+        if (fromDate && toDate) {
+          params.KeyConditionExpression += ' AND SK BETWEEN :skStart AND :skEnd';
+          params.ExpressionAttributeValues[':skStart'] = `DUEDATE#${fromDate}`;
+          params.ExpressionAttributeValues[':skEnd'] = `DUEDATE#${toDate}~`; // ~ ensures we get all items up to this date
+        }
+        
+        console.log('Query params for', country, yearMonth, ':', JSON.stringify(params));
+
+        // Add type filtering
+        if (query.type) {
+          params.FilterExpression = '#type = :type';
+          params.ExpressionAttributeNames = { '#type': 'type' };
+          params.ExpressionAttributeValues[':type'] = query.type.toUpperCase();
+        }
+
+        const result = await docClient.send(new QueryCommand(params));
+        
+        console.log(`Query result for ${country} ${yearMonth}: ${result.Items?.length || 0} items`);
+        
+        if (result.Items) {
         const validDeadlines = result.Items.map(item => {
           try {
             // Filter by date range if specified
@@ -156,8 +173,9 @@ exports.handler = async (event) => {
         
         allDeadlines.push(...validDeadlines);
         totalCount += validDeadlines.length;
-      }
-    }
+        }
+      } // End of yearMonth loop
+    } // End of country loop
 
     // Apply offset and limit
     const paginatedDeadlines = allDeadlines.slice(query.offset, query.offset + query.limit);

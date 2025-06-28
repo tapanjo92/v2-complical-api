@@ -80,6 +80,13 @@ function getAllowedOrigin(event) {
 }
 
 exports.handler = async (event) => {
+  console.log('Auth handler invoked:', JSON.stringify({
+    path: event.path,
+    resource: event.resource,
+    httpMethod: event.httpMethod,
+    pathParameters: event.pathParameters,
+  }));
+  
   const allowedOrigin = getAllowedOrigin(event);
   
   const headers = {
@@ -95,7 +102,7 @@ exports.handler = async (event) => {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
   };
 
-  const path = event.path;
+  const path = event.path || event.resource;
 
   try {
     // Handle registration

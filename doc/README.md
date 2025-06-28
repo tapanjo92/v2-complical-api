@@ -6,6 +6,19 @@ A clean implementation of CompliCal with an optimized DynamoDB design that:
 - Provides efficient access patterns for all API endpoints
 - Eliminates hot partitions
 
+## 📚 Documentation
+
+- 📋 **[Complete Testing Guide](COMPLETE_TESTING_GUIDE.md)** - All API testing commands from start to finish
+- 🇦🇺 **[Australian Data](au/)** - Coverage and missing data for Australia
+  - [Data Coverage](au/data-coverage.md) - What we have (110 deadlines)
+  - [Missing Data](au/missing-data.md) - What we need
+- 🇳🇿 **[New Zealand Data](nz/)** - Coverage and missing data for New Zealand  
+  - [Data Coverage](nz/data-coverage.md) - What we have (9 deadlines)
+  - [Missing Data](nz/missing-data.md) - What we need
+- 🚀 **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Infrastructure deployment instructions
+- 📊 **[Data Coverage Report](DATA_COVERAGE_REPORT.md)** - Detailed data analysis
+- 🧪 **[Endpoint Test Summary](ENDPOINT_TEST_SUMMARY.md)** - API endpoint testing results
+
 ## 🏗️ Architecture
 
 ### DynamoDB Design

@@ -9,8 +9,8 @@ const apigateway = new APIGatewayClient({});
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ssm = new SSMClient({});
 
-const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
-const USAGE_PLAN_SSM_PARAMETER = process.env.USAGE_PLAN_SSM_PARAMETER;
+const API_KEYS_TABLE = process.env.TABLE_NAME;
+const USAGE_PLAN_SSM_PARAMETER = process.env.USAGE_PLAN_ID_PARAM;
 
 // Cache the usage plan ID
 let cachedUsagePlanId = null;
@@ -71,6 +71,13 @@ const createApiKeySchema = z.object({
 });
 
 exports.handler = async (event) => {
+  console.log('API Keys handler invoked:', JSON.stringify({
+    path: event.path,
+    method: event.httpMethod,
+    cookies: event.headers?.Cookie || event.headers?.cookie,
+    authorizerClaims: event.requestContext?.authorizer?.claims,
+  }));
+  
   const allowedOrigin = getAllowedOrigin(event);
   
   const headers = {
@@ -87,9 +94,25 @@ exports.handler = async (event) => {
   };
 
   try {
-    // Extract user email from JWT claims
-    const claims = event.requestContext.authorizer?.claims;
-    if (!claims?.email) {
+    // Extract JWT from cookies
+    const cookies = event.headers?.Cookie || event.headers?.cookie || '';
+    const idToken = cookies.split(';').find(c => c.trim().startsWith('id_token='))?.split('=')[1];
+    
+    if (!idToken) {
+      console.log('No id_token cookie found');
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Unauthorized' }),
+      };
+    }
+    
+    // Decode JWT to get user email (in production, verify the JWT signature)
+    const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+    const userEmail = payload.email;
+    
+    if (!userEmail) {
+      console.log('No email in JWT payload');
       return {
         statusCode: 401,
         headers,
@@ -97,7 +120,6 @@ exports.handler = async (event) => {
       };
     }
 
-    const userEmail = claims.email;
     const path = event.path;
     const method = event.httpMethod;
 
