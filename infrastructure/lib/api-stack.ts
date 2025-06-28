@@ -117,7 +117,7 @@ export class ApiStack extends cdk.Stack {
     props.deadlinesTable.grantReadData(deadlinesFunction);
     props.deadlinesTable.grantReadData(simplifiedDeadlinesFunction);
     props.apiKeysTable.grantReadWriteData(apiKeysFunction);
-    props.apiKeysTable.grantReadData(apiKeyAuthorizerFunction);
+    props.apiKeysTable.grantReadWriteData(apiKeyAuthorizerFunction); // Need write for usage tracking
     props.apiKeysTable.grantWriteData(processUsageLogsFunction);
     props.apiUsageTable.grantWriteData(processUsageLogsFunction);
 

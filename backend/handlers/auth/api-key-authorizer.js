@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 const crypto = require('crypto');
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -78,6 +78,21 @@ exports.handler = async (event) => {
 
     const keyData = result.Items[0];
     console.log('Found API key for user:', keyData.userEmail);
+
+    // Update usage count and last used timestamp asynchronously
+    // We don't await this to avoid adding latency to the authorization
+    const updatePromise = dynamodb.send(new UpdateCommand({
+      TableName: API_KEYS_TABLE,
+      Key: { id: keyData.id },
+      UpdateExpression: 'SET lastUsed = :timestamp, usageCount = if_not_exists(usageCount, :zero) + :inc',
+      ExpressionAttributeValues: {
+        ':timestamp': new Date().toISOString(),
+        ':inc': 1,
+        ':zero': 0,
+      },
+    })).catch(error => {
+      console.error('Failed to update usage count:', error);
+    });
 
     // Generate and return the policy
     // Pass key metadata as context for access logging
