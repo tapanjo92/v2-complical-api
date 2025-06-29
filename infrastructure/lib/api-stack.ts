@@ -246,6 +246,7 @@ export class ApiStack extends cdk.Stack {
     auth.addResource('login').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     auth.addResource('logout').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     auth.addResource('refresh').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+    auth.addResource('change-password').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     
     const apiKeysResource = auth.addResource('api-keys');
     apiKeysResource.addMethod('GET', new apigateway.LambdaIntegration(apiKeysFunction));

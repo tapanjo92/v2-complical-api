@@ -4,6 +4,7 @@ const {
   AdminSetUserPasswordCommand,
   AdminInitiateAuthCommand,
   AdminGetUserCommand,
+  ChangePasswordCommand,
   MessageActionType,
   AuthFlowType
 } = require('@aws-sdk/client-cognito-identity-provider');
@@ -41,6 +42,12 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),
+});
+
+// Change password schema
+const changePasswordSchema = z.object({
+  currentPassword: z.string(),
+  newPassword: z.string().min(8),
 });
 
 // Helper function to create cookie string
@@ -335,6 +342,136 @@ exports.handler = async (event) => {
           companyName: idTokenPayload['custom:companyName'],
           csrfToken: crypto.randomBytes(32).toString('hex'),
           idToken: refreshResponse.AuthenticationResult.IdToken,
+        }),
+      };
+    }
+
+    // Handle change password
+    if (path.endsWith('/change-password')) {
+      // Get token from cookie or Authorization header
+      const cookies = event.headers.Cookie || event.headers.cookie || '';
+      const authHeader = event.headers.Authorization || event.headers.authorization || '';
+      
+      let token = null;
+      let tokenType = null;
+      
+      // Try to get from Authorization header first
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+        // Check if it's an ID token (has email claim) or access token
+        try {
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+          tokenType = payload.email ? 'id' : 'access';
+        } catch (e) {
+          tokenType = 'access'; // Default to access token
+        }
+      } else {
+        // Fallback to cookie
+        token = cookies
+          .split(';')
+          .find(c => c.trim().startsWith('access_token='))
+          ?.split('=')[1];
+        tokenType = 'access';
+      }
+      
+      if (!token) {
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({
+            error: 'Unauthorized',
+            message: 'Please login to change password',
+          }),
+        };
+      }
+      
+      // Parse request body
+      let body;
+      try {
+        body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+      } catch (parseError) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            error: 'Invalid request body',
+            message: 'Request body must be valid JSON',
+          }),
+        };
+      }
+      
+      const { currentPassword, newPassword } = changePasswordSchema.parse(body);
+      
+      // If we have an ID token, we need to get the user's email and use admin commands
+      if (tokenType === 'id') {
+        try {
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+          const userEmail = payload.email;
+          
+          if (!userEmail) {
+            return {
+              statusCode: 401,
+              headers,
+              body: JSON.stringify({
+                error: 'Invalid token',
+                message: 'Token does not contain user email',
+              }),
+            };
+          }
+          
+          // First, verify the current password by attempting to authenticate
+          const authCommand = new AdminInitiateAuthCommand({
+            UserPoolId: USER_POOL_ID,
+            ClientId: USER_POOL_CLIENT_ID,
+            AuthFlow: AuthFlowType.ADMIN_NO_SRP_AUTH,
+            AuthParameters: {
+              USERNAME: userEmail,
+              PASSWORD: currentPassword,
+            },
+          });
+          
+          try {
+            await cognito.send(authCommand);
+          } catch (authError) {
+            return {
+              statusCode: 401,
+              headers,
+              body: JSON.stringify({
+                error: 'Invalid password',
+                message: 'Current password is incorrect',
+              }),
+            };
+          }
+          
+          // If authentication succeeded, set the new password
+          const setPasswordCommand = new AdminSetUserPasswordCommand({
+            UserPoolId: USER_POOL_ID,
+            Username: userEmail,
+            Password: newPassword,
+            Permanent: true,
+          });
+          
+          await cognito.send(setPasswordCommand);
+        } catch (error) {
+          console.error('Error changing password with ID token:', error);
+          throw error;
+        }
+      } else {
+        // Use the regular change password flow with access token
+        const changePasswordCommand = new ChangePasswordCommand({
+          AccessToken: token,
+          PreviousPassword: currentPassword,
+          ProposedPassword: newPassword,
+        });
+        
+        await cognito.send(changePasswordCommand);
+      }
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          message: 'Password updated successfully',
         }),
       };
     }

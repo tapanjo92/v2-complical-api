@@ -90,6 +90,9 @@ export const api = {
     
     refresh: () =>
       apiClient.post('/v1/auth/refresh'),
+    
+    updatePassword: (data: { currentPassword: string; newPassword: string }) =>
+      apiClient.post('/v1/auth/change-password', data),
   },
   
   // API Keys

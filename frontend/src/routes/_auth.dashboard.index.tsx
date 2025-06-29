@@ -23,7 +23,7 @@ function DashboardOverview() {
     staleTime: 0, // Always consider data stale to force refetch
     refetchOnWindowFocus: true, // Refetch when user returns to tab
     refetchOnMount: 'always', // Always refetch when component mounts
-    refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
+    refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
     enabled: !!user, // Only fetch if user is logged in
   })
 

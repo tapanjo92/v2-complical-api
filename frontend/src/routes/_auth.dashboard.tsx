@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from '@tanstack/react-router'
-import { CalendarDays, Key, Activity, LogOut, Menu, X } from 'lucide-react'
+import { CalendarDays, Key, Activity, LogOut, Menu, X, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/lib/auth-store'
 import { useState } from 'react'
@@ -17,6 +17,7 @@ function DashboardLayout() {
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: Activity },
     { name: 'API Keys', href: '/dashboard/api-keys', icon: Key },
+    { name: 'Account', href: '/dashboard/account', icon: User },
   ]
 
   const handleLogout = async () => {
@@ -34,10 +35,10 @@ function DashboardLayout() {
         <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-xl">
           <div className="flex h-16 items-center justify-between px-4 border-b">
-            <div className="flex items-center space-x-2">
+            <Link to="/dashboard" className="flex items-center space-x-2">
               <CalendarDays className="h-6 w-6 text-primary" />
               <span className="font-semibold">CompliCal</span>
-            </div>
+            </Link>
             <Button
               variant="ghost"
               size="icon"
@@ -75,7 +76,7 @@ function DashboardLayout() {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-1 bg-white border-r">
           <div className="flex h-16 items-center px-6 border-b">
-            <Link to="/" className="flex items-center space-x-2">
+            <Link to="/dashboard" className="flex items-center space-x-2">
               <CalendarDays className="h-8 w-8 text-primary" />
               <span className="text-xl font-bold">CompliCal</span>
             </Link>

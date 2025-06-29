@@ -7,6 +7,8 @@ interface User {
   email: string
   companyName?: string
   tier?: string
+  userId?: string
+  createdAt?: string
 }
 
 interface ApiKey {
