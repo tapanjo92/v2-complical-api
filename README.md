@@ -108,8 +108,8 @@ npm run dev
 
 ## Documentation
 
-- 📚 [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Complete deployment instructions
-- 💾 [DATA_MANAGEMENT.md](./DATA_MANAGEMENT.md) - Data loading and management
+- 📚 [Deployment Guide](./doc/DEPLOYMENT_GUIDE.md) - Complete deployment instructions
+- 💾 [Data Management](./doc/DATA_MANAGEMENT.md) - Data loading and management
 - 🎨 [Frontend README](./frontend/README.md) - Frontend development guide
 - 🏗️ [Infrastructure README](./infrastructure/README.md) - CDK stack details
 

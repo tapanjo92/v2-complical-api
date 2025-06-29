@@ -70,6 +70,7 @@ export class ApiStack extends cdk.Stack {
       environment: {
         USER_POOL_ID: props.userPool.userPoolId,
         USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
+        API_KEYS_TABLE: props.apiKeysTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
       timeout: cdk.Duration.seconds(30),
@@ -157,7 +158,9 @@ export class ApiStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
       environment: {
         WEBHOOKS_TABLE: props.webhooksTable.tableName,
+        API_KEYS_TABLE: props.apiKeysTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        SES_FROM_EMAIL: props.environment === 'prod' ? 'noreply@complical.ai' : 'noreply@get-comp.dev.tatacommunications.link',
       },
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
@@ -176,6 +179,18 @@ export class ApiStack extends cdk.Stack {
     props.webhooksTable.grantReadWriteData(webhooksFunction);
     props.webhooksTable.grantReadWriteData(processWebhooksFunction);
 
+    // Grant SES permissions to webhook processor for email notifications
+    processWebhooksFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'ses:SendEmail',
+        'ses:SendTemplatedEmail',
+      ],
+      resources: [
+        `arn:aws:ses:${this.region}:${this.account}:identity/*`,
+        `arn:aws:ses:${this.region}:${this.account}:configuration-set/*`,
+      ],
+    }));
+
     // Grant Cognito permissions
     authFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: [
@@ -187,6 +202,9 @@ export class ApiStack extends cdk.Stack {
       ],
       resources: [props.userPool.userPoolArn],
     }));
+
+    // Grant auth function permission to update user preferences
+    props.apiKeysTable.grantWriteData(authFunction);
 
     apiKeysFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: ['cognito-idp:AdminGetUser'],
@@ -285,6 +303,7 @@ export class ApiStack extends cdk.Stack {
     auth.addResource('logout').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     auth.addResource('refresh').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     auth.addResource('change-password').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+    auth.addResource('email-preferences').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     
     const apiKeysResource = auth.addResource('api-keys');
     apiKeysResource.addMethod('GET', new apigateway.LambdaIntegration(apiKeysFunction));

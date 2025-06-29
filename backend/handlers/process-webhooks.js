@@ -1,10 +1,15 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, QueryCommand, UpdateCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 const crypto = require('crypto');
 const https = require('https');
+const { sendUsageAlertEmail } = require('../services/email-service');
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const WEBHOOKS_TABLE = process.env.WEBHOOKS_TABLE;
+const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
+
+// Email notification thresholds (as requested by user)
+const EMAIL_NOTIFICATION_THRESHOLDS = ['usage.threshold.50', 'usage.threshold.75', 'usage.threshold.90'];
 
 // Helper to make HTTPS request with timeout
 function httpsRequest(url, options, data) {
@@ -75,6 +80,33 @@ exports.handler = async (event) => {
 
     const webhooks = webhooksResult.Items || [];
     console.log(`Found ${webhooks.length} webhooks to trigger for ${eventType}`);
+
+    // Send email notification based on user preferences
+    try {
+      // Get user email preferences from DynamoDB
+      const userPrefsResult = await dynamodb.send(new GetCommand({
+        TableName: API_KEYS_TABLE,
+        Key: { id: `USER#${userEmail}` },
+      }));
+
+      const emailPrefs = userPrefsResult.Item?.emailPreferences;
+      const notificationEmail = userPrefsResult.Item?.notificationEmail || userEmail;
+
+      // Check if user has email notifications enabled and this threshold is selected
+      if (emailPrefs?.enabled && emailPrefs?.thresholds?.includes(eventType)) {
+        console.log(`Sending email notification for ${eventType} to ${notificationEmail}`);
+        await sendUsageAlertEmail(notificationEmail, eventType, data);
+      } else if (!emailPrefs && EMAIL_NOTIFICATION_THRESHOLDS.includes(eventType)) {
+        // Default behavior for users who haven't set preferences yet
+        // Send emails for 50%, 75%, 90% by default
+        console.log(`Sending default email notification for ${eventType} to ${userEmail}`);
+        await sendUsageAlertEmail(userEmail, eventType, data);
+      }
+    } catch (emailError) {
+      // Don't fail the whole process if email fails
+      console.error(`Failed to send email notification:`, emailError);
+      // In production, you might want to send this to a DLQ or monitoring
+    }
 
     // Process each webhook
     const results = await Promise.allSettled(

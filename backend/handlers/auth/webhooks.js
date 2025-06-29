@@ -14,11 +14,27 @@ const webhookSchema = z.object({
   description: z.string().optional(),
 });
 
-const headers = {
-  'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+// Get allowed origin from request
+const getAllowedOrigin = (event) => {
+  const origin = event.headers.origin || event.headers.Origin;
+  const allowedOrigins = [
+    'https://d1v4wmxs6wjlqf.cloudfront.net',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    return origin;
+  }
+  return allowedOrigins[0]; // Default to CloudFront
 };
+
+const getHeaders = (event) => ({
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': getAllowedOrigin(event),
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-CSRF-Token',
+  'Access-Control-Allow-Credentials': 'true',
+});
 
 exports.handler = async (event) => {
   console.log('Webhook handler invoked:', JSON.stringify({
@@ -32,7 +48,7 @@ exports.handler = async (event) => {
   if (!authHeader.startsWith('Bearer ')) {
     return {
       statusCode: 401,
-      headers,
+      headers: getHeaders(event),
       body: JSON.stringify({ error: 'Unauthorized' }),
     };
   }
@@ -50,7 +66,7 @@ exports.handler = async (event) => {
     console.error('Failed to parse JWT token:', error);
     return {
       statusCode: 401,
-      headers,
+      headers: getHeaders(event),
       body: JSON.stringify({ error: 'Invalid token' }),
     };
   }
@@ -65,7 +81,7 @@ exports.handler = async (event) => {
         const webhooks = await listWebhooks(userEmail);
         return {
           statusCode: 200,
-          headers,
+          headers: getHeaders(event),
           body: JSON.stringify({ webhooks }),
         };
 
@@ -101,7 +117,7 @@ exports.handler = async (event) => {
         const { signingSecret: _, ...webhookResponse } = webhook;
         return {
           statusCode: 201,
-          headers,
+          headers: getHeaders(event),
           body: JSON.stringify({
             webhook: webhookResponse,
             signingSecret, // Only returned on creation
@@ -113,7 +129,7 @@ exports.handler = async (event) => {
         if (!webhookId) {
           return {
             statusCode: 400,
-            headers,
+            headers: getHeaders(event),
             body: JSON.stringify({ error: 'Webhook ID required' }),
           };
         }
@@ -157,7 +173,7 @@ exports.handler = async (event) => {
 
         return {
           statusCode: 200,
-          headers,
+          headers: getHeaders(event),
           body: JSON.stringify({ message: 'Webhook updated' }),
         };
 
@@ -166,7 +182,7 @@ exports.handler = async (event) => {
         if (!webhookId) {
           return {
             statusCode: 400,
-            headers,
+            headers: getHeaders(event),
             body: JSON.stringify({ error: 'Webhook ID required' }),
           };
         }
@@ -179,14 +195,14 @@ exports.handler = async (event) => {
 
         return {
           statusCode: 200,
-          headers,
+          headers: getHeaders(event),
           body: JSON.stringify({ message: 'Webhook deleted' }),
         };
 
       default:
         return {
           statusCode: 405,
-          headers,
+          headers: getHeaders(event),
           body: JSON.stringify({ error: 'Method not allowed' }),
         };
     }
@@ -196,7 +212,7 @@ exports.handler = async (event) => {
     if (error instanceof z.ZodError) {
       return {
         statusCode: 400,
-        headers,
+        headers: getHeaders(event),
         body: JSON.stringify({
           error: 'Validation error',
           details: error.errors,
@@ -207,14 +223,14 @@ exports.handler = async (event) => {
     if (error.name === 'ConditionalCheckFailedException') {
       return {
         statusCode: 404,
-        headers,
+        headers: getHeaders(event),
         body: JSON.stringify({ error: 'Webhook not found' }),
       };
     }
 
     return {
       statusCode: 500,
-      headers,
+      headers: getHeaders(event),
       body: JSON.stringify({ error: 'Internal server error' }),
     };
   }

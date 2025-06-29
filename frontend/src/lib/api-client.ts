@@ -97,6 +97,12 @@ export const api = {
     
     updatePassword: (data: { currentPassword: string; newPassword: string }) =>
       apiClient.post('/v1/auth/change-password', data),
+    
+    updateEmailPreferences: (data: { 
+      enabled: boolean; 
+      thresholds: Record<string, boolean>; 
+      customEmail: string 
+    }) => apiClient.post('/v1/auth/email-preferences', data),
   },
   
   // API Keys

@@ -9,10 +9,11 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from '@/hooks/use-toast'
 import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
-import { User, Mail, Building, Calendar, Lock } from 'lucide-react'
+import { User, Mail, Building, Calendar, Lock, Bell, Save } from 'lucide-react'
 import { format } from 'date-fns'
 import { PasswordInput } from '@/components/PasswordInput'
 import { PasswordStrengthIndicator } from '@/components/PasswordStrengthIndicator'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export const Route = createFileRoute('/_auth/dashboard/account')({
   component: AccountSettings,
@@ -24,6 +25,21 @@ function AccountSettings() {
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
+  })
+  
+  // Email notification preferences
+  const [emailPreferences, setEmailPreferences] = useState({
+    enabled: true,
+    thresholds: {
+      '25': true,
+      '50': true,
+      '75': true,
+      '80': false,
+      '90': true,
+      '95': false,
+      '100': true,
+    },
+    customEmail: user?.email || '',
   })
 
   // Update password mutation
@@ -46,6 +62,26 @@ function AccountSettings() {
       toast({
         title: 'Password update failed',
         description: error.response?.data?.message || 'Failed to update password',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  // Update email preferences mutation
+  const updateEmailPrefsMutation = useMutation({
+    mutationFn: async (prefs: typeof emailPreferences) => {
+      return api.auth.updateEmailPreferences(prefs)
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Email preferences saved',
+        description: 'Your notification settings have been updated.',
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to save preferences',
+        description: error.response?.data?.message || 'Failed to update email preferences',
         variant: 'destructive',
       })
     },
@@ -85,6 +121,31 @@ function AccountSettings() {
       currentPassword: passwordForm.currentPassword,
       newPassword: passwordForm.newPassword,
     })
+  }
+
+  const handleEmailPreferencesSave = () => {
+    // Validate email
+    if (!emailPreferences.customEmail || !emailPreferences.customEmail.includes('@')) {
+      toast({
+        title: 'Invalid email',
+        description: 'Please enter a valid email address.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Ensure at least one threshold is selected
+    const selectedThresholds = Object.values(emailPreferences.thresholds).filter(Boolean)
+    if (emailPreferences.enabled && selectedThresholds.length === 0) {
+      toast({
+        title: 'No thresholds selected',
+        description: 'Please select at least one threshold to receive notifications.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    updateEmailPrefsMutation.mutate(emailPreferences)
   }
 
   return (
@@ -146,6 +207,108 @@ function AccountSettings() {
             <p className="text-sm text-blue-800">
               <strong>Note:</strong> To update your email address or company name, please contact support at support@complical.com
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Email Notification Preferences */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Email Notification Preferences
+          </CardTitle>
+          <CardDescription>
+            Choose when you want to receive email alerts about your API usage
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Enable/Disable All Notifications */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-1">
+              <div className="font-medium">Email Notifications</div>
+              <div className="text-sm text-muted-foreground">
+                Receive email alerts when your API usage reaches certain thresholds
+              </div>
+            </div>
+            <Checkbox
+              checked={emailPreferences.enabled}
+              onCheckedChange={(checked) => 
+                setEmailPreferences({ ...emailPreferences, enabled: !!checked })
+              }
+            />
+          </div>
+
+          {/* Notification Email */}
+          <div className="space-y-2">
+            <Label htmlFor="notificationEmail">Notification Email</Label>
+            <Input
+              id="notificationEmail"
+              type="email"
+              placeholder="your-email@example.com"
+              value={emailPreferences.customEmail}
+              onChange={(e) => 
+                setEmailPreferences({ ...emailPreferences, customEmail: e.target.value })
+              }
+              disabled={!emailPreferences.enabled}
+            />
+            <p className="text-sm text-muted-foreground">
+              We'll send usage alerts to this email address
+            </p>
+          </div>
+
+          {/* Threshold Selection */}
+          <div className="space-y-4">
+            <Label>Alert Thresholds</Label>
+            <div className="grid gap-4 md:grid-cols-2">
+              {Object.entries({
+                '25': { label: '25% Usage', description: '2,500 API calls', color: 'text-green-600' },
+                '50': { label: '50% Usage', description: '5,000 API calls', color: 'text-yellow-600' },
+                '75': { label: '75% Usage', description: '7,500 API calls', color: 'text-orange-600' },
+                '80': { label: '80% Usage', description: '8,000 API calls', color: 'text-orange-700' },
+                '90': { label: '90% Usage', description: '9,000 API calls', color: 'text-red-600' },
+                '95': { label: '95% Usage', description: '9,500 API calls', color: 'text-red-700' },
+                '100': { label: '100% Usage', description: '10,000 API calls (limit reached)', color: 'text-red-800' },
+              }).map(([threshold, config]) => (
+                <div key={threshold} className="flex items-start space-x-3 p-3 border rounded-lg">
+                  <Checkbox
+                    id={`threshold-${threshold}`}
+                    checked={emailPreferences.thresholds[threshold as keyof typeof emailPreferences.thresholds]}
+                    onCheckedChange={(checked) => 
+                      setEmailPreferences({
+                        ...emailPreferences,
+                        thresholds: {
+                          ...emailPreferences.thresholds,
+                          [threshold]: !!checked,
+                        },
+                      })
+                    }
+                    disabled={!emailPreferences.enabled}
+                  />
+                  <div className="flex-1">
+                    <label
+                      htmlFor={`threshold-${threshold}`}
+                      className={`font-medium cursor-pointer ${config.color}`}
+                    >
+                      {config.label}
+                    </label>
+                    <p className="text-sm text-muted-foreground">{config.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Save Button */}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={handleEmailPreferencesSave}
+              disabled={!emailPreferences.enabled || updateEmailPrefsMutation.isPending}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {updateEmailPrefsMutation.isPending ? 'Saving...' : 'Save Email Preferences'}
+            </Button>
           </div>
         </CardContent>
       </Card>

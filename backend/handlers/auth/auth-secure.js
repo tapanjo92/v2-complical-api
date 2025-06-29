@@ -15,6 +15,7 @@ const cognito = new CognitoIdentityProviderClient({});
 
 const USER_POOL_ID = process.env.USER_POOL_ID;
 const USER_POOL_CLIENT_ID = process.env.USER_POOL_CLIENT_ID;
+const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
 const ENVIRONMENT = process.env.ENVIRONMENT || 'dev';
 
 // Cookie configuration based on environment
@@ -472,6 +473,107 @@ exports.handler = async (event) => {
         headers,
         body: JSON.stringify({
           message: 'Password updated successfully',
+        }),
+      };
+    }
+
+    // Handle email preferences update
+    if (path.endsWith('/email-preferences')) {
+      // Get token from Authorization header
+      const authHeader = event.headers.Authorization || event.headers.authorization || '';
+      
+      if (!authHeader.startsWith('Bearer ')) {
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({
+            error: 'Unauthorized',
+            message: 'Authorization header required',
+          }),
+        };
+      }
+      
+      const token = authHeader.substring(7);
+      
+      // Parse the JWT token to get user email
+      let userEmail;
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) {
+          throw new Error('Invalid token format');
+        }
+        const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+        userEmail = payload.email;
+        
+        if (!userEmail) {
+          throw new Error('Token does not contain email');
+        }
+      } catch (error) {
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({
+            error: 'Invalid token',
+            message: 'Could not parse authentication token',
+          }),
+        };
+      }
+
+      // Parse request body
+      const body = JSON.parse(event.body || '{}');
+      const { enabled, thresholds, customEmail } = body;
+
+      // Validate email format
+      if (customEmail && !customEmail.includes('@')) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            error: 'Invalid email',
+            message: 'Please provide a valid email address',
+          }),
+        };
+      }
+
+      // Store preferences in DynamoDB (using API keys table for now)
+      // In production, you might want a dedicated user preferences table
+      const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+      const { DynamoDBDocumentClient, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+      
+      const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+      const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
+
+      // Convert thresholds object to array of enabled thresholds
+      const enabledThresholds = Object.entries(thresholds || {})
+        .filter(([_, enabled]) => enabled)
+        .map(([threshold, _]) => `usage.threshold.${threshold}`);
+
+      // Store user email preferences
+      await dynamodb.send(new UpdateCommand({
+        TableName: API_KEYS_TABLE,
+        Key: {
+          id: `USER#${userEmail}`,
+        },
+        UpdateExpression: 'SET emailPreferences = :prefs, notificationEmail = :email',
+        ExpressionAttributeValues: {
+          ':prefs': {
+            enabled: enabled || false,
+            thresholds: enabledThresholds,
+          },
+          ':email': customEmail || userEmail,
+        },
+      }));
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          message: 'Email preferences updated successfully',
+          preferences: {
+            enabled,
+            thresholds: enabledThresholds,
+            notificationEmail: customEmail || userEmail,
+          },
         }),
       };
     }
