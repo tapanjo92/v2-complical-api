@@ -79,6 +79,9 @@ exports.handler = async (event) => {
     const keyData = result.Items[0];
     console.log('Found API key for user:', keyData.userEmail);
     
+    // Check if rolling 30-day reset is needed
+    const now = new Date();
+    
     // Get ALL keys for this user to calculate total usage
     const userKeysQuery = new QueryCommand({
       TableName: API_KEYS_TABLE,
@@ -97,16 +100,57 @@ exports.handler = async (event) => {
     const userKeysResult = await dynamodb.send(userKeysQuery);
     const userKeys = userKeysResult.Items || [];
     
+    // Check if we need to reset based on rolling 30-day window
+    const usageResetDate = keyData.usageResetDate ? new Date(keyData.usageResetDate) : null;
+    const needsReset = !usageResetDate || now > usageResetDate;
+    
+    if (needsReset) {
+      // Calculate new reset date (30 days from now)
+      const newResetDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const newResetDateISO = newResetDate.toISOString();
+      
+      console.log(`Resetting usage for user ${keyData.userEmail}. Previous reset: ${keyData.usageResetDate || 'never'}, New reset: ${newResetDateISO}`);
+      
+      // Reset all active keys for this user
+      const resetPromises = userKeys.map(key => 
+        dynamodb.send(new UpdateCommand({
+          TableName: API_KEYS_TABLE,
+          Key: { id: key.id },
+          UpdateExpression: 'SET usageCount = :zero, usageResetDate = :resetDate',
+          ExpressionAttributeValues: {
+            ':zero': 0,
+            ':resetDate': newResetDateISO,
+          },
+        }))
+      );
+      
+      await Promise.all(resetPromises);
+      
+      // Update the keys in memory to reflect reset
+      userKeys.forEach(key => {
+        key.usageCount = 0;
+        key.usageResetDate = newResetDateISO;
+      });
+    }
+    
     // Calculate TOTAL usage across ALL user's keys
     const totalUserUsage = userKeys.reduce((sum, key) => sum + (key.usageCount || 0), 0);
     const userUsageLimit = 10000; // 10k limit PER USER (not per key)
     
     if (totalUserUsage >= userUsageLimit) {
       console.log(`User ${keyData.userEmail} has exceeded usage limit: ${totalUserUsage}/${userUsageLimit}`);
+      // DO NOT update usage count when limit is exceeded
       throw new Error('Usage limit exceeded');
     }
     
     const currentUsage = keyData.usageCount || 0;
+    
+    // Only update if we're under the limit
+    const newTotalAfterThisRequest = totalUserUsage + 1;
+    if (newTotalAfterThisRequest > userUsageLimit) {
+      console.log(`This request would exceed limit: ${newTotalAfterThisRequest}/${userUsageLimit}`);
+      throw new Error('Usage limit exceeded');
+    }
 
     // Update usage count and last used timestamp asynchronously
     // We don't await this to avoid adding latency to the authorization
@@ -120,6 +164,8 @@ exports.handler = async (event) => {
         ':inc': 1,
         ':zero': 0,
       },
+      // Add condition to prevent race conditions
+      ConditionExpression: 'attribute_exists(id)',
     })).then(() => {
       console.log(`Successfully updated usage count for key ${keyData.id}`);
     }).catch(error => {
@@ -137,8 +183,10 @@ exports.handler = async (event) => {
     
     // Calculate new usage count (current + 1)
     const newUsageCount = currentUsage + 1;
-    const newTotalUserUsage = totalUserUsage + 1;
-    const remainingCalls = Math.max(0, userUsageLimit - newTotalUserUsage);
+    const remainingCalls = Math.max(0, userUsageLimit - newTotalAfterThisRequest);
+    
+    // Get the reset date for this user (should be same for all their keys)
+    const resetDate = keyData.usageResetDate || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
     
     const policy = generatePolicy(
       keyData.userEmail, // Use email as principal
@@ -148,9 +196,10 @@ exports.handler = async (event) => {
         apiKeyId: keyData.id,
         userEmail: keyData.userEmail,
         keyName: keyData.name,
-        usageCount: String(newTotalUserUsage), // Total USER usage, not just key
+        usageCount: String(newTotalAfterThisRequest), // Total USER usage after this request
         usageLimit: String(userUsageLimit),
         remainingCalls: String(remainingCalls),
+        usageResetDate: resetDate,
       }
     );
 

@@ -41,15 +41,27 @@ exports.handler = async (event) => {
   const usageCount = authContext.usageCount || '0';
   const usageLimit = authContext.usageLimit || '10000';
   const remainingCalls = authContext.remainingCalls || '10000';
+  const usageResetDate = authContext.usageResetDate;
+  
+  // Calculate reset timestamp
+  let resetTimestamp;
+  if (usageResetDate) {
+    resetTimestamp = Math.floor(new Date(usageResetDate).getTime() / 1000);
+  } else {
+    // Default to 30 days from now if not provided
+    const defaultReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    resetTimestamp = Math.floor(defaultReset.getTime() / 1000);
+  }
   
   const baseHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type,X-API-Key,Authorization',
-    'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used',
+    'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Reset',
     'X-RateLimit-Limit': usageLimit,
     'X-RateLimit-Remaining': remainingCalls,
     'X-RateLimit-Used': usageCount,
+    'X-RateLimit-Reset': resetTimestamp.toString(), // Unix timestamp
     'X-API-Version': 'v1'
   };
   

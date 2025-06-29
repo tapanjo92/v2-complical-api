@@ -14,6 +14,7 @@ exports.handler = async (event) => {
   const usageCount = authContext.usageCount || '0';
   const usageLimit = authContext.usageLimit || '10000';
   const remainingCalls = authContext.remainingCalls || '10000';
+  const usageResetDate = authContext.usageResetDate;
 
   try {
     const params = {
@@ -79,7 +80,8 @@ exports.handler = async (event) => {
     return successResponse(response, {
       used: usageCount,
       limit: usageLimit,
-      remaining: remainingCalls
+      remaining: remainingCalls,
+      resetDate: usageResetDate
     });
   } catch (error) {
     console.error('Error:', error);
@@ -230,15 +232,26 @@ function transformDeadline(item) {
 }
 
 function successResponse(data, usageInfo) {
+  // Get reset date from authorizer context or calculate default
+  let resetTimestamp;
+  if (usageInfo?.resetDate) {
+    resetTimestamp = Math.floor(new Date(usageInfo.resetDate).getTime() / 1000);
+  } else {
+    // Default to 30 days from now if not provided
+    const defaultReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    resetTimestamp = Math.floor(defaultReset.getTime() / 1000);
+  }
+  
   return {
     statusCode: 200,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used',
+      'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Reset',
       'X-RateLimit-Limit': usageInfo?.limit || '10000',
       'X-RateLimit-Remaining': usageInfo?.remaining || '10000',
       'X-RateLimit-Used': usageInfo?.used || '0',
+      'X-RateLimit-Reset': resetTimestamp.toString(), // Unix timestamp
     },
     body: JSON.stringify(data),
   };
