@@ -15,13 +15,14 @@ function DashboardOverview() {
   
   // Load usage data from dedicated endpoint
   const { data: usageData } = useQuery({
-    queryKey: ['usage'],
+    queryKey: ['usage', user?.email], // Include user email to prevent cross-user caching
     queryFn: async () => {
       const response = await api.usage.get()
       return response.data
     },
     staleTime: 60 * 1000, // 1 minute
     refetchInterval: 60 * 1000, // Auto-refresh every minute
+    enabled: !!user, // Only fetch if user is logged in
   })
 
   const activeKeys = usageData?.api_keys?.active || 0

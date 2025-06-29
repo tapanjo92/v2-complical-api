@@ -152,25 +152,9 @@ exports.handler = async (event) => {
       throw new Error('Usage limit exceeded');
     }
 
-    // Update usage count and last used timestamp asynchronously
-    // We don't await this to avoid adding latency to the authorization
-    console.log(`Updating usage count for key ${keyData.id}. User total: ${totalUserUsage}/${userUsageLimit}`);
-    const updatePromise = dynamodb.send(new UpdateCommand({
-      TableName: API_KEYS_TABLE,
-      Key: { id: keyData.id },
-      UpdateExpression: 'SET lastUsed = :timestamp, usageCount = if_not_exists(usageCount, :zero) + :inc',
-      ExpressionAttributeValues: {
-        ':timestamp': new Date().toISOString(),
-        ':inc': 1,
-        ':zero': 0,
-      },
-      // Add condition to prevent race conditions
-      ConditionExpression: 'attribute_exists(id)',
-    })).then(() => {
-      console.log(`Successfully updated usage count for key ${keyData.id}`);
-    }).catch(error => {
-      console.error('Failed to update usage count:', error);
-    });
+    // Usage tracking is now handled asynchronously via CloudWatch Logs
+    // This provides accurate per-request tracking without impacting API latency
+    console.log(`Authorizing key ${keyData.id} for user ${keyData.userEmail}. Current total: ${totalUserUsage}/${userUsageLimit}`);
 
     // Generate and return the policy
     // Pass key metadata as context for access logging

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { api } from './api-client'
+import { queryClient } from '@/lib/query-client'
 
 interface User {
   email: string
@@ -51,6 +52,18 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true })
         try {
+          // Clear any existing state before login to prevent data bleeding
+          set({ 
+            user: null, 
+            csrfToken: null, 
+            idToken: null, 
+            apiKeys: [],
+            isLoading: true 
+          })
+          
+          // Clear all React Query cache to ensure fresh data
+          queryClient.clear()
+          
           const response = await api.auth.login({ email, password })
           const { email: userEmail, companyName, csrfToken, idToken } = response.data
           
@@ -61,7 +74,10 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           })
           
-          // Load API keys after login
+          // Invalidate and refetch all queries to ensure fresh data
+          await queryClient.invalidateQueries()
+          
+          // Load API keys after login - this will fetch fresh data for the new user
           await get().loadApiKeys()
         } catch (error) {
           set({ isLoading: false })
@@ -82,12 +98,18 @@ export const useAuthStore = create<AuthState>()(
       },
       
       logout: async () => {
+        // Clear all React Query cache FIRST
+        queryClient.clear()
+        
         try {
           await api.auth.logout()
         } finally {
+          // Clear all state
           set({ user: null, csrfToken: null, idToken: null, apiKeys: [] })
           // Clear any stored dev API key
           localStorage.removeItem('complical-dev-key')
+          // Clear the persisted auth state
+          localStorage.removeItem('complical-auth')
         }
       },
       

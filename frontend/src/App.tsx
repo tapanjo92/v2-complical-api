@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { ErrorBoundary } from 'react-error-boundary'
@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { routeTree } from './routeTree.gen'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { useAuthStore } from '@/lib/auth-store'
+import { queryClient } from '@/lib/query-client'
 
 // Create a new router instance
 const router = createRouter({ routeTree })
@@ -17,24 +18,6 @@ declare module '@tanstack/react-router' {
     router: typeof router
   }
 }
-
-// Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
-      retry: (failureCount, error: any) => {
-        // Don't retry on 4xx errors
-        if (error?.response?.status >= 400 && error?.response?.status < 500) {
-          return false
-        }
-        return failureCount < 3
-      },
-      refetchOnWindowFocus: false,
-    },
-  },
-})
 
 function AppContent() {
   const { user, idToken, refreshAuth } = useAuthStore()

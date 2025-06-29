@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { api } from '@/lib/api-client'
+import { useAuthStore } from '@/lib/auth-store'
 import { toast } from '@/hooks/use-toast'
 import { Key, Plus, Trash2, Copy, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -26,12 +27,15 @@ function ApiKeysPage() {
   const [keyDescription, setKeyDescription] = useState('')
 
   // Fetch API keys
+  const { user } = useAuthStore()
+  
   const { data, isLoading } = useQuery({
-    queryKey: ['apiKeys'],
+    queryKey: ['apiKeys', user?.email],
     queryFn: async () => {
       const response = await api.apiKeys.list()
       return response.data
     },
+    enabled: !!user,
   })
 
   // Create API key mutation

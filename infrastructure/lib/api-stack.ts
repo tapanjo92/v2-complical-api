@@ -119,8 +119,8 @@ export class ApiStack extends cdk.Stack {
       handler: 'process-usage-logs.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
       environment: {
-        API_KEYS_TABLE_NAME: props.apiKeysTable.tableName,
-        API_USAGE_TABLE_NAME: props.apiUsageTable.tableName,
+        API_KEYS_TABLE: props.apiKeysTable.tableName,
+        API_USAGE_TABLE: props.apiUsageTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
       timeout: cdk.Duration.minutes(5),
@@ -179,8 +179,16 @@ export class ApiStack extends cdk.Stack {
           status: '$context.status',
           responseLength: '$context.responseLength',
           error: '$context.error.message',
-          apiKeyId: '$context.authorizer.apiKeyId',
-          principalId: '$context.authorizer.principalId',
+          identity: {
+            sourceIp: '$context.identity.sourceIp',
+            userAgent: '$context.identity.userAgent'
+          },
+          authorizer: {
+            apiKeyId: '$context.authorizer.apiKeyId',
+            userEmail: '$context.authorizer.userEmail',
+            keyName: '$context.authorizer.keyName',
+            principalId: '$context.authorizer.principalId'
+          }
         })),
       },
       defaultCorsPreflightOptions: {
