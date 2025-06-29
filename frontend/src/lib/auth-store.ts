@@ -63,8 +63,9 @@ export const useAuthStore = create<AuthState>()(
             isLoading: true 
           })
           
-          // Clear all React Query cache to ensure fresh data
-          queryClient.clear()
+          // Clear only auth-related queries, not usage data
+          queryClient.removeQueries({ queryKey: ['api-keys'] })
+          queryClient.removeQueries({ queryKey: ['webhooks'] })
           
           const response = await api.auth.login({ email, password })
           const { email: userEmail, companyName, csrfToken, idToken } = response.data
@@ -76,8 +77,18 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           })
           
-          // Invalidate and refetch all queries to ensure fresh data
-          await queryClient.invalidateQueries()
+          // Invalidate old usage queries and prefetch new ones
+          await queryClient.removeQueries({ queryKey: ['usage'] })
+          
+          // Prefetch usage data for the new user
+          queryClient.prefetchQuery({
+            queryKey: ['usage', 'dashboard', userEmail],
+            queryFn: async () => {
+              const response = await api.usage.get()
+              return response.data
+            },
+            staleTime: 5 * 1000,
+          })
           
           // Load API keys after login - this will fetch fresh data for the new user
           await get().loadApiKeys()
@@ -100,9 +111,6 @@ export const useAuthStore = create<AuthState>()(
       },
       
       logout: async () => {
-        // Clear all React Query cache FIRST
-        queryClient.clear()
-        
         try {
           await api.auth.logout()
         } finally {
@@ -112,6 +120,8 @@ export const useAuthStore = create<AuthState>()(
           localStorage.removeItem('complical-dev-key')
           // Clear the persisted auth state
           localStorage.removeItem('complical-auth')
+          // Clear all React Query cache after logout
+          queryClient.clear()
         }
       },
       

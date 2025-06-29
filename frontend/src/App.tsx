@@ -8,6 +8,7 @@ import { routeTree } from './routeTree.gen'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { useAuthStore } from '@/lib/auth-store'
 import { queryClient } from '@/lib/query-client'
+import { UsageProvider } from '@/providers/usage-provider'
 
 // Create a new router instance
 const router = createRouter({ routeTree })
@@ -32,11 +33,11 @@ function AppContent() {
   }, [])
   
   return (
-    <>
+    <UsageProvider>
       <RouterProvider router={router} />
       <Toaster />
       {import.meta.env.DEV && <ReactQueryDevtools />}
-    </>
+    </UsageProvider>
   )
 }
 

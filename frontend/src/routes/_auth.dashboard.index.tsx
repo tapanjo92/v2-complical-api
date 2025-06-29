@@ -1,11 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
 import { Link } from '@tanstack/react-router'
 import { Activity, Key, Zap, ArrowRight, TrendingUp, RefreshCw } from 'lucide-react'
+import { useUsageData } from '@/hooks/use-usage-data'
 export const Route = createFileRoute('/_auth/dashboard/')({
   component: DashboardOverview,
 })
@@ -13,24 +12,19 @@ export const Route = createFileRoute('/_auth/dashboard/')({
 function DashboardOverview() {
   const { user } = useAuthStore()
   
-  // Load usage data from dedicated endpoint
-  const { data: usageData, refetch, isRefetching, dataUpdatedAt } = useQuery({
-    queryKey: ['usage', user?.email], // Include user email to prevent cross-user caching
-    queryFn: async () => {
-      const response = await api.usage.get()
-      return response.data
-    },
-    staleTime: 0, // Always consider data stale to force refetch
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchOnMount: 'always', // Always refetch when component mounts
-    refetchInterval: 60 * 1000, // Auto-refresh every 60 seconds
-    enabled: !!user, // Only fetch if user is logged in
-  })
-
-  const activeKeys = usageData?.api_keys?.active || 0
-  const totalUsage = usageData?.current_period?.usage || 0
-  const usageLimit = usageData?.current_period?.limit || 10000
-  const usagePercentage = usageData?.current_period?.percentage || 0
+  // Use the custom hook for usage data
+  const { 
+    data: usageData, 
+    refetch, 
+    isRefetching, 
+    dataUpdatedAt,
+    isLoading,
+    activeKeys,
+    totalUsage,
+    usageLimit,
+    usagePercentage,
+    daysUntilReset
+  } = useUsageData()
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
@@ -97,7 +91,12 @@ function DashboardOverview() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalUsage.toLocaleString()}</div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold">{totalUsage.toLocaleString()}</span>
+              {isRefetching && (
+                <RefreshCw className="h-4 w-4 text-muted-foreground animate-spin" />
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               {usagePercentage}% of {(usageLimit/1000).toFixed(0)}k limit
             </p>
@@ -114,8 +113,8 @@ function DashboardOverview() {
           <CardContent>
             <div className="text-2xl font-bold">Free Tier</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {usageData?.current_period?.days_until_reset 
-                ? `Resets in ${usageData.current_period.days_until_reset} days`
+              {daysUntilReset > 0 
+                ? `Resets in ${daysUntilReset} days`
                 : '30-day rolling window'}
             </p>
           </CardContent>
