@@ -9,8 +9,11 @@ const TABLE_NAME = process.env.TABLE_NAME;
 exports.handler = async (event) => {
   console.log('Request:', JSON.stringify(event, null, 2));
   
-  // Extract usage count from authorizer context
-  const usageCount = event.requestContext?.authorizer?.usageCount || '0';
+  // Extract usage information from authorizer context
+  const authContext = event.requestContext?.authorizer || {};
+  const usageCount = authContext.usageCount || '0';
+  const usageLimit = authContext.usageLimit || '10000';
+  const remainingCalls = authContext.remainingCalls || '10000';
 
   try {
     const params = {
@@ -73,7 +76,11 @@ exports.handler = async (event) => {
       query: params,
     };
 
-    return successResponse(response, usageCount);
+    return successResponse(response, {
+      used: usageCount,
+      limit: usageLimit,
+      remaining: remainingCalls
+    });
   } catch (error) {
     console.error('Error:', error);
     return errorResponse(500, 'Internal server error');
@@ -222,15 +229,16 @@ function transformDeadline(item) {
   };
 }
 
-function successResponse(data, usageCount) {
+function successResponse(data, usageInfo) {
   return {
     statusCode: 200,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Expose-Headers': 'X-API-Usage-Count, X-API-Usage-Info',
-      'X-API-Usage-Count': usageCount || '0',
-      'X-API-Usage-Info': 'Check X-API-Usage-Count header for current usage',
+      'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used',
+      'X-RateLimit-Limit': usageInfo?.limit || '10000',
+      'X-RateLimit-Remaining': usageInfo?.remaining || '10000',
+      'X-RateLimit-Used': usageInfo?.used || '0',
     },
     body: JSON.stringify(data),
   };

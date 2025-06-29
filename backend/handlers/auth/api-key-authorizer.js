@@ -78,10 +78,19 @@ exports.handler = async (event) => {
 
     const keyData = result.Items[0];
     console.log('Found API key for user:', keyData.userEmail);
+    
+    // Check if usage limit is exceeded BEFORE allowing the request
+    const currentUsage = keyData.usageCount || 0;
+    const usageLimit = keyData.usageLimit || 10000; // Default 10k limit
+    
+    if (currentUsage >= usageLimit) {
+      console.log(`API key ${keyData.id} has exceeded usage limit: ${currentUsage}/${usageLimit}`);
+      throw new Error('Usage limit exceeded');
+    }
 
     // Update usage count and last used timestamp asynchronously
     // We don't await this to avoid adding latency to the authorization
-    console.log(`Updating usage count for key ${keyData.id}`);
+    console.log(`Updating usage count for key ${keyData.id}. Current: ${currentUsage}, Limit: ${usageLimit}`);
     const updatePromise = dynamodb.send(new UpdateCommand({
       TableName: API_KEYS_TABLE,
       Key: { id: keyData.id },
@@ -107,7 +116,8 @@ exports.handler = async (event) => {
     console.log('Generated wildcard resource:', wildcardResource);
     
     // Calculate new usage count (current + 1)
-    const newUsageCount = (keyData.usageCount || 0) + 1;
+    const newUsageCount = currentUsage + 1;
+    const remainingCalls = Math.max(0, usageLimit - newUsageCount);
     
     const policy = generatePolicy(
       keyData.userEmail, // Use email as principal
@@ -118,6 +128,8 @@ exports.handler = async (event) => {
         userEmail: keyData.userEmail,
         keyName: keyData.name,
         usageCount: String(newUsageCount), // Include new count in context
+        usageLimit: String(usageLimit),
+        remainingCalls: String(remainingCalls),
       }
     );
 

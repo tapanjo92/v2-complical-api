@@ -36,10 +36,20 @@ const COUNTRY_MAPPING = {
 };
 
 exports.handler = async (event) => {
+  // Extract usage information from authorizer context
+  const authContext = event.requestContext?.authorizer || {};
+  const usageCount = authContext.usageCount || '0';
+  const usageLimit = authContext.usageLimit || '10000';
+  const remainingCalls = authContext.remainingCalls || '10000';
+  
   const baseHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type,X-API-Key,Authorization',
+    'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used',
+    'X-RateLimit-Limit': usageLimit,
+    'X-RateLimit-Remaining': remainingCalls,
+    'X-RateLimit-Used': usageCount,
     'X-API-Version': 'v1'
   };
   
