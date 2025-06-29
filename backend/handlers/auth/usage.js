@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
@@ -58,7 +58,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // Get all user's API keys
+    // Get all user's API keys with strongly consistent read
     const keysQuery = new QueryCommand({
       TableName: API_KEYS_TABLE,
       IndexName: 'userEmail-createdAt-index',
@@ -66,19 +66,36 @@ exports.handler = async (event) => {
       ExpressionAttributeValues: {
         ':email': userEmail,
       },
+      ConsistentRead: false, // GSI doesn't support consistent reads, but we'll handle it differently
     });
 
     const keysResult = await dynamodb.send(keysQuery);
     const apiKeys = keysResult.Items || [];
 
-    // Calculate current period (monthly)
-    const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    // For accurate counts, fetch each key with GetItem (strongly consistent)
+    const keyDetailsPromises = apiKeys.map(key => 
+      dynamodb.send(new GetCommand({
+        TableName: API_KEYS_TABLE,
+        Key: { id: key.id },
+        ConsistentRead: true,
+      }))
+    );
+    
+    const keyDetailsResults = await Promise.all(keyDetailsPromises);
+    const freshApiKeys = keyDetailsResults
+      .map(result => result.Item)
+      .filter(item => item !== undefined);
 
-    // Aggregate usage across all keys
-    const totalUsage = apiKeys.reduce((sum, key) => sum + (key.usageCount || 0), 0);
-    const activeKeys = apiKeys.filter(key => key.status === 'active').length;
+    // Calculate current period (rolling 30-day window)
+    const now = new Date();
+    
+    // Get the reset date from any key (they should all have the same reset date)
+    const resetDate = freshApiKeys[0]?.usageResetDate ? new Date(freshApiKeys[0].usageResetDate) : null;
+    const daysUntilReset = resetDate ? Math.ceil((resetDate - now) / (1000 * 60 * 60 * 24)) : 30;
+
+    // Aggregate usage across all keys using fresh data
+    const totalUsage = freshApiKeys.reduce((sum, key) => sum + (key.usageCount || 0), 0);
+    const activeKeys = freshApiKeys.filter(key => key.status === 'active').length;
     
     // Get recent usage details (last 10 requests)
     const recentUsage = [];
@@ -104,17 +121,19 @@ exports.handler = async (event) => {
     // Build response
     const response = {
       current_period: {
-        start: periodStart.toISOString(),
-        end: periodEnd.toISOString(),
         usage: totalUsage,
         limit: 10000, // Free tier limit
         percentage: Math.round((totalUsage / 10000) * 100),
+        remaining: Math.max(0, 10000 - totalUsage),
+        reset_date: resetDate ? resetDate.toISOString() : null,
+        days_until_reset: daysUntilReset,
+        window_type: 'rolling_30_days',
       },
       api_keys: {
         active: activeKeys,
-        total: apiKeys.length,
+        total: freshApiKeys.length,
       },
-      usage_by_key: apiKeys.map(key => ({
+      usage_by_key: freshApiKeys.map(key => ({
         id: key.id,
         name: key.name,
         usage: key.usageCount || 0,

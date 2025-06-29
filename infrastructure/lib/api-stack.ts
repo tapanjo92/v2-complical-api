@@ -7,6 +7,8 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as logsDestinations from 'aws-cdk-lib/aws-logs-destinations';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
@@ -15,6 +17,7 @@ export interface ApiStackProps extends cdk.StackProps {
   deadlinesTable: dynamodb.Table;
   apiKeysTable: dynamodb.Table;
   apiUsageTable: dynamodb.Table;
+  webhooksTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
 }
@@ -128,6 +131,34 @@ export class ApiStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE,
     });
 
+    // Lambda function for webhook management
+    const webhooksFunction = new lambda.Function(this, 'WebhooksFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'auth/webhooks.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      environment: {
+        WEBHOOKS_TABLE: props.webhooksTable.tableName,
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+      },
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      tracing: lambda.Tracing.ACTIVE,
+    });
+
+    // Lambda function for processing webhook deliveries
+    const processWebhooksFunction = new lambda.Function(this, 'ProcessWebhooksFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'process-webhooks.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      environment: {
+        WEBHOOKS_TABLE: props.webhooksTable.tableName,
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+      },
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      tracing: lambda.Tracing.ACTIVE,
+    });
+
     // Grant permissions
     props.deadlinesTable.grantReadData(deadlinesFunction);
     props.deadlinesTable.grantReadData(simplifiedDeadlinesFunction);
@@ -137,6 +168,8 @@ export class ApiStack extends cdk.Stack {
     props.apiUsageTable.grantWriteData(processUsageLogsFunction);
     props.apiKeysTable.grantReadData(usageFunction);
     props.apiUsageTable.grantReadData(usageFunction);
+    props.webhooksTable.grantReadWriteData(webhooksFunction);
+    props.webhooksTable.grantReadWriteData(processWebhooksFunction);
 
     // Grant Cognito permissions
     authFunction.addToRolePolicy(new iam.PolicyStatement({
@@ -257,6 +290,14 @@ export class ApiStack extends cdk.Stack {
     // Usage endpoint (requires JWT authentication)
     const usageResource = auth.addResource('usage');
     usageResource.addMethod('GET', new apigateway.LambdaIntegration(usageFunction));
+    
+    // Webhook endpoints (requires JWT authentication)
+    const webhooksResource = auth.addResource('webhooks');
+    webhooksResource.addMethod('GET', new apigateway.LambdaIntegration(webhooksFunction));
+    webhooksResource.addMethod('POST', new apigateway.LambdaIntegration(webhooksFunction));
+    const webhookIdResource = webhooksResource.addResource('{webhookId}');
+    webhookIdResource.addMethod('PUT', new apigateway.LambdaIntegration(webhooksFunction));
+    webhookIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(webhooksFunction));
 
     // Custom authorizer
     const apiKeyAuthorizer = new apigateway.RequestAuthorizer(this, 'ApiKeyAuthorizer', {
@@ -359,6 +400,23 @@ export class ApiStack extends cdk.Stack {
       filterPattern: logs.FilterPattern.literal('[...]'),
       destination: new logsDestinations.LambdaDestination(processUsageLogsFunction),
     });
+
+    // SNS Topic for webhook triggers
+    const webhookTopic = new sns.Topic(this, 'WebhookTriggerTopic', {
+      topicName: `complical-webhook-triggers-${props.environment}`,
+      displayName: 'CompliCal Webhook Triggers',
+    });
+
+    // Subscribe webhook processor to SNS topic
+    webhookTopic.addSubscription(
+      new snsSubscriptions.LambdaSubscription(processWebhooksFunction)
+    );
+
+    // Grant authorizer permission to publish to SNS
+    webhookTopic.grantPublish(apiKeyAuthorizerFunction);
+
+    // Pass SNS topic ARN to authorizer
+    apiKeyAuthorizerFunction.addEnvironment('WEBHOOK_TOPIC_ARN', webhookTopic.topicArn);
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {

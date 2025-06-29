@@ -46,8 +46,12 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as any
     
-    // Handle 401 - try to refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Handle 401 - try to refresh token (but not for auth endpoints)
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') || 
+                          originalRequest.url?.includes('/auth/register') ||
+                          originalRequest.url?.includes('/auth/refresh');
+    
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true
       
       try {
@@ -105,6 +109,21 @@ export const api = {
     
     delete: (keyId: string) =>
       apiClient.delete(`/v1/auth/api-keys/${keyId}`),
+  },
+  
+  // Webhooks
+  webhooks: {
+    list: () =>
+      apiClient.get('/v1/auth/webhooks'),
+    
+    create: (data: { url: string; events: string[]; description?: string; active?: boolean }) =>
+      apiClient.post('/v1/auth/webhooks', data),
+    
+    update: (webhookId: string, data: { url?: string; events?: string[]; description?: string; active?: boolean }) =>
+      apiClient.put(`/v1/auth/webhooks/${webhookId}`, data),
+    
+    delete: (webhookId: string) =>
+      apiClient.delete(`/v1/auth/webhooks/${webhookId}`),
   },
   
   // Usage analytics

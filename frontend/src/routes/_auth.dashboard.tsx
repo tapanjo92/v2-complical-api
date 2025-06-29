@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from '@tanstack/react-router'
-import { CalendarDays, Key, Activity, LogOut, Menu, X, User } from 'lucide-react'
+import { CalendarDays, Key, Activity, LogOut, Menu, X, User, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/lib/auth-store'
 import { useState } from 'react'
@@ -17,6 +17,7 @@ function DashboardLayout() {
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: Activity },
     { name: 'API Keys', href: '/dashboard/api-keys', icon: Key },
+    { name: 'Webhooks', href: '/dashboard/webhooks', icon: Bell },
     { name: 'Account', href: '/dashboard/account', icon: User },
   ]
 

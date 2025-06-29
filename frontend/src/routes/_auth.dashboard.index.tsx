@@ -107,14 +107,16 @@ function DashboardOverview() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Current Plan
+              Usage Period
             </CardTitle>
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">Free Tier</div>
             <p className="text-xs text-muted-foreground mt-1">
-              10,000 requests/month
+              {usageData?.current_period?.days_until_reset 
+                ? `Resets in ${usageData.current_period.days_until_reset} days`
+                : '30-day rolling window'}
             </p>
           </CardContent>
         </Card>

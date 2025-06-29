@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthDashboardRouteImport } from './routes/_auth.dashboard'
 import { Route as AuthDashboardIndexRouteImport } from './routes/_auth.dashboard.index'
+import { Route as AuthDashboardWebhooksRouteImport } from './routes/_auth.dashboard.webhooks'
 import { Route as AuthDashboardApiKeysRouteImport } from './routes/_auth.dashboard.api-keys'
 import { Route as AuthDashboardAccountRouteImport } from './routes/_auth.dashboard.account'
 
@@ -74,6 +75,11 @@ const AuthDashboardIndexRoute = AuthDashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthDashboardRoute,
 } as any)
+const AuthDashboardWebhooksRoute = AuthDashboardWebhooksRouteImport.update({
+  id: '/webhooks',
+  path: '/webhooks',
+  getParentRoute: () => AuthDashboardRoute,
+} as any)
 const AuthDashboardApiKeysRoute = AuthDashboardApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthDashboardRouteWithChildren
   '/dashboard/account': typeof AuthDashboardAccountRoute
   '/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
+  '/dashboard/webhooks': typeof AuthDashboardWebhooksRoute
   '/dashboard/': typeof AuthDashboardIndexRoute
 }
 export interface FileRoutesByTo {
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsLazyRoute
   '/dashboard/account': typeof AuthDashboardAccountRoute
   '/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
+  '/dashboard/webhooks': typeof AuthDashboardWebhooksRoute
   '/dashboard': typeof AuthDashboardIndexRoute
 }
 export interface FileRoutesById {
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/_auth/dashboard': typeof AuthDashboardRouteWithChildren
   '/_auth/dashboard/account': typeof AuthDashboardAccountRoute
   '/_auth/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
+  '/_auth/dashboard/webhooks': typeof AuthDashboardWebhooksRoute
   '/_auth/dashboard/': typeof AuthDashboardIndexRoute
 }
 export interface FileRouteTypes {
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/dashboard/account'
     | '/dashboard/api-keys'
+    | '/dashboard/webhooks'
     | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/dashboard/account'
     | '/dashboard/api-keys'
+    | '/dashboard/webhooks'
     | '/dashboard'
   id:
     | '__root__'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_auth/dashboard'
     | '/_auth/dashboard/account'
     | '/_auth/dashboard/api-keys'
+    | '/_auth/dashboard/webhooks'
     | '/_auth/dashboard/'
   fileRoutesById: FileRoutesById
 }
@@ -250,6 +262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthDashboardIndexRouteImport
       parentRoute: typeof AuthDashboardRoute
     }
+    '/_auth/dashboard/webhooks': {
+      id: '/_auth/dashboard/webhooks'
+      path: '/webhooks'
+      fullPath: '/dashboard/webhooks'
+      preLoaderRoute: typeof AuthDashboardWebhooksRouteImport
+      parentRoute: typeof AuthDashboardRoute
+    }
     '/_auth/dashboard/api-keys': {
       id: '/_auth/dashboard/api-keys'
       path: '/api-keys'
@@ -270,12 +289,14 @@ declare module '@tanstack/react-router' {
 interface AuthDashboardRouteChildren {
   AuthDashboardAccountRoute: typeof AuthDashboardAccountRoute
   AuthDashboardApiKeysRoute: typeof AuthDashboardApiKeysRoute
+  AuthDashboardWebhooksRoute: typeof AuthDashboardWebhooksRoute
   AuthDashboardIndexRoute: typeof AuthDashboardIndexRoute
 }
 
 const AuthDashboardRouteChildren: AuthDashboardRouteChildren = {
   AuthDashboardAccountRoute: AuthDashboardAccountRoute,
   AuthDashboardApiKeysRoute: AuthDashboardApiKeysRoute,
+  AuthDashboardWebhooksRoute: AuthDashboardWebhooksRoute,
   AuthDashboardIndexRoute: AuthDashboardIndexRoute,
 }
 

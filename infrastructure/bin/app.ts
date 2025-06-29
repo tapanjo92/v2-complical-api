@@ -34,6 +34,7 @@ const apiStack = new ApiStack(app, `CompliCal-API-${environment}`, {
   deadlinesTable: dynamoStack.deadlinesTable,
   apiKeysTable: dynamoStack.apiKeysTable,
   apiUsageTable: dynamoStack.apiUsageTable,
+  webhooksTable: dynamoStack.webhooksTable,
   userPool: authStack.userPool,
   userPoolClient: authStack.userPoolClient,
   description: 'CompliCal API Gateway and Lambda functions',

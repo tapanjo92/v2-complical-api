@@ -1,9 +1,12 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
 const crypto = require('crypto');
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const sns = new SNSClient({});
 const API_KEYS_TABLE = process.env.TABLE_NAME;
+const WEBHOOK_TOPIC_ARN = process.env.WEBHOOK_TOPIC_ARN;
 
 // Helper function to hash API key
 function hashApiKey(apiKey) {
@@ -171,6 +174,47 @@ exports.handler = async (event) => {
     
     // Get the reset date for this user (should be same for all their keys)
     const resetDate = keyData.usageResetDate || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // Check if we need to trigger webhook notifications
+    const usagePercentage = Math.round((newTotalAfterThisRequest / userUsageLimit) * 100);
+    const thresholds = [50, 80, 90, 95, 100];
+    
+    for (const threshold of thresholds) {
+      if (usagePercentage >= threshold && totalUserUsage < (userUsageLimit * threshold / 100)) {
+        // We just crossed this threshold, trigger webhook
+        console.log(`User ${keyData.userEmail} crossed ${threshold}% usage threshold`);
+        
+        // Send SNS notification asynchronously (fire and forget)
+        if (WEBHOOK_TOPIC_ARN) {
+          sns.send(new PublishCommand({
+            TopicArn: WEBHOOK_TOPIC_ARN,
+            Message: JSON.stringify({
+              userEmail: keyData.userEmail,
+              eventType: `usage.threshold.${threshold}`,
+              data: {
+                usage: newTotalAfterThisRequest,
+                limit: userUsageLimit,
+                percentage: usagePercentage,
+                remainingCalls: remainingCalls,
+                resetDate: resetDate,
+              },
+            }),
+            MessageAttributes: {
+              eventType: {
+                DataType: 'String',
+                StringValue: `usage.threshold.${threshold}`,
+              },
+            },
+          })).catch(err => {
+            // Log error but don't fail the authorization
+            console.error('Failed to send webhook notification:', err);
+          });
+        }
+        
+        // Only trigger the first threshold we cross
+        break;
+      }
+    }
     
     const policy = generatePolicy(
       keyData.userEmail, // Use email as principal

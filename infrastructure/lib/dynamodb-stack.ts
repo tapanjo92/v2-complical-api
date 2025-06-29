@@ -10,6 +10,7 @@ export class DynamoDBStack extends cdk.Stack {
   public readonly deadlinesTable: dynamodb.Table;
   public readonly apiKeysTable: dynamodb.Table;
   public readonly apiUsageTable: dynamodb.Table;
+  public readonly webhooksTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DynamoDBStackProps) {
     super(scope, id, props);
@@ -121,6 +122,38 @@ export class DynamoDBStack extends cdk.Stack {
         : cdk.RemovalPolicy.DESTROY,
     });
 
+    // Webhooks table for storing webhook configurations and delivery status
+    this.webhooksTable = new dynamodb.Table(this, 'WebhooksTable', {
+      tableName: `complical-webhooks-${props.environment}`,
+      partitionKey: {
+        name: 'userEmail',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'webhookId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      removalPolicy: props.environment === 'prod' 
+        ? cdk.RemovalPolicy.RETAIN 
+        : cdk.RemovalPolicy.DESTROY,
+    });
+
+    // GSI for webhook delivery status tracking
+    this.webhooksTable.addGlobalSecondaryIndex({
+      indexName: 'status-index',
+      partitionKey: {
+        name: 'status',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'nextRetry',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // Outputs
     new cdk.CfnOutput(this, 'DeadlinesTableName', {
       value: this.deadlinesTable.tableName,
@@ -135,6 +168,11 @@ export class DynamoDBStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ApiUsageTableName', {
       value: this.apiUsageTable.tableName,
       description: 'API Usage DynamoDB table name',
+    });
+
+    new cdk.CfnOutput(this, 'WebhooksTableName', {
+      value: this.webhooksTable.tableName,
+      description: 'Webhooks DynamoDB table name',
     });
   }
 }
