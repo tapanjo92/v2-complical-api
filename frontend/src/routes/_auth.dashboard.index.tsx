@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
 import { Link } from '@tanstack/react-router'
-import { Activity, Key, Zap, ArrowRight, TrendingUp } from 'lucide-react'
+import { Activity, Key, Zap, ArrowRight, TrendingUp, RefreshCw } from 'lucide-react'
 export const Route = createFileRoute('/_auth/dashboard/')({
   component: DashboardOverview,
 })
@@ -14,14 +14,16 @@ function DashboardOverview() {
   const { user } = useAuthStore()
   
   // Load usage data from dedicated endpoint
-  const { data: usageData } = useQuery({
+  const { data: usageData, refetch, isRefetching, dataUpdatedAt } = useQuery({
     queryKey: ['usage', user?.email], // Include user email to prevent cross-user caching
     queryFn: async () => {
       const response = await api.usage.get()
       return response.data
     },
-    staleTime: 60 * 1000, // 1 minute
-    refetchInterval: 60 * 1000, // Auto-refresh every minute
+    staleTime: 0, // Always consider data stale to force refetch
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchOnMount: 'always', // Always refetch when component mounts
+    refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
     enabled: !!user, // Only fetch if user is logged in
   })
 
@@ -33,12 +35,41 @@ function DashboardOverview() {
   return (
     <div className="px-4 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back{user?.companyName ? `, ${user.companyName}` : ''}!
-        </h1>
-        <p className="mt-2 text-gray-600">
-          Here's an overview of your CompliCal API usage
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Welcome back{user?.companyName ? `, ${user.companyName}` : ''}!
+            </h1>
+            <p className="mt-2 text-gray-600">
+              Here's an overview of your CompliCal API usage
+            </p>
+          </div>
+          <Button
+            onClick={() => refetch()}
+            disabled={isRefetching}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Usage Tracking Notice */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="flex items-start">
+          <Activity className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+          <div className="text-sm text-blue-800">
+            <p className="font-medium mb-1">Usage tracking system update in progress</p>
+            <p>We're currently updating our usage tracking infrastructure. API calls are working normally, but usage counts may be delayed. The system will be fully operational shortly.</p>
+            {dataUpdatedAt && (
+              <p className="text-xs mt-1 text-blue-600">
+                Last updated: {new Date(dataUpdatedAt).toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Stats Grid */}

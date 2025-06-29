@@ -8,16 +8,17 @@ A complete rewrite of CompliCal API with enhanced security and optimized DynamoD
 
 ## 📚 Documentation
 
-- 📋 **[Complete Testing Guide](COMPLETE_TESTING_GUIDE.md)** - All API testing commands from start to finish
-- 🇦🇺 **[Australian Data](au/)** - Coverage and missing data for Australia
-  - [Data Coverage](au/data-coverage.md) - What we have (110 deadlines)
-  - [Missing Data](au/missing-data.md) - What we need
-- 🇳🇿 **[New Zealand Data](nz/)** - Coverage and missing data for New Zealand  
-  - [Data Coverage](nz/data-coverage.md) - What we have (9 deadlines)
-  - [Missing Data](nz/missing-data.md) - What we need
-- 🚀 **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Infrastructure deployment instructions
-- 📊 **[Data Coverage Report](DATA_COVERAGE_REPORT.md)** - Detailed data analysis
-- 🧪 **[Endpoint Test Summary](ENDPOINT_TEST_SUMMARY.md)** - API endpoint testing results
+### Testing
+- 🧪 **[API Testing Guide](test/API_TESTING_GUIDE.md)** - Quick API testing commands
+- 🎭 **[Playwright Testing](test/PLAYWRIGHT_TESTING.md)** - E2E test suites
+
+### Data Coverage
+- 🇦🇺 **[Australian Data](au/)** - 110 deadlines loaded
+- 🇳🇿 **[New Zealand Data](nz/)** - 9 deadlines loaded
+
+### Deployment
+- 🚀 **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Infrastructure deployment
+- 📊 **[Data Coverage Report](DATA_COVERAGE_REPORT.md)** - Detailed analysis
 
 ## 🏗️ Architecture
 

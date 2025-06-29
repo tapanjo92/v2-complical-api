@@ -60,3 +60,10 @@ secrets/
 *.secret
 config.js
 config.json
+# Playwright test outputs
+playwright-tests/test-results/
+playwright-tests/playwright-report/
+playwright-tests/screenshots/
+playwright-tests/videos/
+playwright-tests/downloads/
+playwright-tests/trace/

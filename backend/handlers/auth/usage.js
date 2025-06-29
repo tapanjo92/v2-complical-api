@@ -31,8 +31,24 @@ exports.handler = async (event) => {
     }
 
     const token = authHeader.substring(7);
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const userEmail = payload.email;
+    
+    // Parse JWT token safely
+    let userEmail;
+    try {
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        throw new Error('Invalid token format');
+      }
+      const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+      userEmail = payload.email;
+    } catch (error) {
+      console.error('Failed to parse JWT token:', error);
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid token format' }),
+      };
+    }
 
     if (!userEmail) {
       return {

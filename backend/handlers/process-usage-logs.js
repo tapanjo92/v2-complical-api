@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, UpdateCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 const zlib = require('zlib');
 const { promisify } = require('util');
 
@@ -61,14 +61,40 @@ exports.handler = async (event) => {
       try {
         // Parse the access log entry
         const logEntry = JSON.parse(logEvent.message);
+        
+        // Debug: Log the structure for the first event
+        if (logData.logEvents.indexOf(logEvent) === 0) {
+          console.log('Sample log entry structure:', JSON.stringify({
+            apiKeyId: logEntry.apiKeyId,
+            authorizer: logEntry.authorizer,
+            requestTime: logEntry.requestTime,
+            status: logEntry.status
+          }));
+        }
 
         // Skip if no API key was used
-        if (!logEntry.authorizer?.apiKeyId) {
+        // Handle both formats: top-level apiKeyId and authorizer.apiKeyId
+        const apiKeyId = logEntry.apiKeyId || logEntry.authorizer?.apiKeyId;
+        if (!apiKeyId) {
           continue;
         }
 
-        const apiKeyId = logEntry.authorizer.apiKeyId;
-        const userEmail = logEntry.authorizer.userEmail || 'unknown';
+        // Get user email from authorizer context or look it up from the API key
+        let userEmail = logEntry.authorizer?.userEmail || logEntry.userEmail;
+        
+        // If no user email in logs, fetch from API key record
+        if (!userEmail) {
+          try {
+            const keyData = await dynamodb.send(new GetCommand({
+              TableName: API_KEYS_TABLE,
+              Key: { id: apiKeyId }
+            }));
+            userEmail = keyData.Item?.userEmail || 'unknown';
+          } catch (error) {
+            console.error(`Failed to fetch user email for key ${apiKeyId}:`, error);
+            userEmail = 'unknown';
+          }
+        }
         
         // Parse the API Gateway date format: "27/Jun/2025:09:12:41 +0000"
         const requestTimeStr = logEntry.requestTime;
@@ -77,6 +103,7 @@ exports.handler = async (event) => {
         const statusCode = parseInt(logEntry.status);
 
         // Update API key usage count and last used timestamp
+        console.log(`Updating usage for API key ${apiKeyId}, user: ${userEmail}`);
         const updateKeyCommand = new UpdateCommand({
           TableName: API_KEYS_TABLE,
           Key: { id: apiKeyId },
@@ -89,11 +116,14 @@ exports.handler = async (event) => {
         });
 
         try {
-          await dynamodb.send(updateKeyCommand);
+          const result = await dynamodb.send(updateKeyCommand);
+          console.log(`Successfully updated usage count for API key ${apiKeyId}`);
         } catch (error) {
           // Key might not exist anymore (deleted/expired)
           if (error.name !== 'ConditionalCheckFailedException') {
             console.error(`Failed to update API key ${apiKeyId}:`, error);
+          } else {
+            console.warn(`API key ${apiKeyId} does not exist in table`);
           }
         }
 
@@ -102,14 +132,14 @@ exports.handler = async (event) => {
           PK: `USER#${userEmail}`,
           SK: `USAGE#${dateHour}#${logEntry.requestId}`,
           apiKeyId,
-          keyName: logEntry.authorizer.keyName,
+          keyName: logEntry.authorizer?.keyName || 'unknown',
           timestamp: requestDate.toISOString(),
           method: logEntry.httpMethod,
-          path: logEntry.path,
+          path: logEntry.resourcePath || logEntry.path,
           statusCode,
           responseLength: parseInt(logEntry.responseLength) || 0,
-          sourceIp: logEntry.identity.sourceIp,
-          userAgent: logEntry.identity.userAgent,
+          sourceIp: logEntry.ip || logEntry.identity?.sourceIp,
+          userAgent: logEntry.userAgent || logEntry.identity?.userAgent,
           error: statusCode >= 400 ? logEntry.error : undefined,
           // TTL for 90 days
           ttl: Math.floor(Date.now() / 1000) + (90 * 24 * 60 * 60),
