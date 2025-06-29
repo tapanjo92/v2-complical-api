@@ -79,18 +79,38 @@ exports.handler = async (event) => {
     const keyData = result.Items[0];
     console.log('Found API key for user:', keyData.userEmail);
     
-    // Check if usage limit is exceeded BEFORE allowing the request
-    const currentUsage = keyData.usageCount || 0;
-    const usageLimit = keyData.usageLimit || 10000; // Default 10k limit
+    // Get ALL keys for this user to calculate total usage
+    const userKeysQuery = new QueryCommand({
+      TableName: API_KEYS_TABLE,
+      IndexName: 'userEmail-createdAt-index',
+      KeyConditionExpression: 'userEmail = :email',
+      FilterExpression: '#status = :active',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+      },
+      ExpressionAttributeValues: {
+        ':email': keyData.userEmail,
+        ':active': 'active',
+      },
+    });
     
-    if (currentUsage >= usageLimit) {
-      console.log(`API key ${keyData.id} has exceeded usage limit: ${currentUsage}/${usageLimit}`);
+    const userKeysResult = await dynamodb.send(userKeysQuery);
+    const userKeys = userKeysResult.Items || [];
+    
+    // Calculate TOTAL usage across ALL user's keys
+    const totalUserUsage = userKeys.reduce((sum, key) => sum + (key.usageCount || 0), 0);
+    const userUsageLimit = 10000; // 10k limit PER USER (not per key)
+    
+    if (totalUserUsage >= userUsageLimit) {
+      console.log(`User ${keyData.userEmail} has exceeded usage limit: ${totalUserUsage}/${userUsageLimit}`);
       throw new Error('Usage limit exceeded');
     }
+    
+    const currentUsage = keyData.usageCount || 0;
 
     // Update usage count and last used timestamp asynchronously
     // We don't await this to avoid adding latency to the authorization
-    console.log(`Updating usage count for key ${keyData.id}. Current: ${currentUsage}, Limit: ${usageLimit}`);
+    console.log(`Updating usage count for key ${keyData.id}. User total: ${totalUserUsage}/${userUsageLimit}`);
     const updatePromise = dynamodb.send(new UpdateCommand({
       TableName: API_KEYS_TABLE,
       Key: { id: keyData.id },
@@ -117,7 +137,8 @@ exports.handler = async (event) => {
     
     // Calculate new usage count (current + 1)
     const newUsageCount = currentUsage + 1;
-    const remainingCalls = Math.max(0, usageLimit - newUsageCount);
+    const newTotalUserUsage = totalUserUsage + 1;
+    const remainingCalls = Math.max(0, userUsageLimit - newTotalUserUsage);
     
     const policy = generatePolicy(
       keyData.userEmail, // Use email as principal
@@ -127,8 +148,8 @@ exports.handler = async (event) => {
         apiKeyId: keyData.id,
         userEmail: keyData.userEmail,
         keyName: keyData.name,
-        usageCount: String(newUsageCount), // Include new count in context
-        usageLimit: String(usageLimit),
+        usageCount: String(newTotalUserUsage), // Total USER usage, not just key
+        usageLimit: String(userUsageLimit),
         remainingCalls: String(remainingCalls),
       }
     );
