@@ -81,6 +81,7 @@ exports.handler = async (event) => {
 
     // Update usage count and last used timestamp asynchronously
     // We don't await this to avoid adding latency to the authorization
+    console.log(`Updating usage count for key ${keyData.id}`);
     const updatePromise = dynamodb.send(new UpdateCommand({
       TableName: API_KEYS_TABLE,
       Key: { id: keyData.id },
@@ -90,7 +91,9 @@ exports.handler = async (event) => {
         ':inc': 1,
         ':zero': 0,
       },
-    })).catch(error => {
+    })).then(() => {
+      console.log(`Successfully updated usage count for key ${keyData.id}`);
+    }).catch(error => {
       console.error('Failed to update usage count:', error);
     });
 
