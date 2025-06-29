@@ -8,9 +8,13 @@ const API_USAGE_TABLE = process.env.API_USAGE_TABLE;
 exports.handler = async (event) => {
   console.log('Usage handler invoked');
   
+  // Get the origin from the request
+  const origin = event.headers?.origin || event.headers?.Origin;
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001', 'https://d1v4wmxs6wjlqf.cloudfront.net'];
+  
   const headers = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
     'Access-Control-Allow-Credentials': 'true',
     'Cache-Control': 'max-age=60', // Cache for 1 minute
   };
