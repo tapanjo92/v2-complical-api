@@ -5,6 +5,8 @@ import { DynamoDBStack } from '../lib/dynamodb-stack';
 import { AuthStack } from '../lib/auth-stack';
 import { ApiStack } from '../lib/api-stack';
 import { FrontendStack } from '../lib/frontend-stack';
+import { WafStack } from '../lib/waf-stack';
+import { MonitoringStack } from '../lib/monitoring-stack';
 
 const app = new cdk.App();
 
@@ -49,5 +51,33 @@ const frontendStack = new FrontendStack(app, `CompliCal-Frontend-${environment}`
   env,
   description: 'CompliCal frontend with CloudFront and S3',
 });
+
+// Deploy WAF stack
+const wafStack = new WafStack(app, `CompliCal-WAF-${environment}`, {
+  environment,
+  env,
+  apiArn: `arn:aws:apigateway:${env.region}::/restapis/${apiStack.api.restApiId}/stages/${apiStack.api.deploymentStage.stageName}`,
+  description: 'CompliCal WAF protection rules',
+});
+
+wafStack.addDependency(apiStack);
+
+// Deploy Monitoring stack
+const monitoringStack = new MonitoringStack(app, `CompliCal-Monitoring-${environment}`, {
+  environment,
+  env,
+  apiName: apiStack.api.restApiName,
+  lambdaFunctions: {
+    deadlines: apiStack.deadlinesFunction,
+    auth: apiStack.authFunction,
+    apiKeys: apiStack.apiKeysFunction,
+    webhooks: apiStack.webhooksFunction,
+    authorizer: apiStack.authorizerFunction,
+  },
+  alertEmail: process.env.ALERT_EMAIL, // Set this in your environment
+  description: 'CompliCal CloudWatch monitoring and alarms',
+});
+
+monitoringStack.addDependency(apiStack);
 
 app.synth();

@@ -25,6 +25,11 @@ export interface ApiStackProps extends cdk.StackProps {
 export class ApiStack extends cdk.Stack {
   public readonly api: apigateway.RestApi;
   public readonly usagePlanId: string;
+  public readonly deadlinesFunction: lambda.Function;
+  public readonly authFunction: lambda.Function;
+  public readonly apiKeysFunction: lambda.Function;
+  public readonly webhooksFunction: lambda.Function;
+  public readonly authorizerFunction: lambda.Function;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -355,6 +360,13 @@ export class ApiStack extends cdk.Stack {
     });
 
     this.usagePlanId = usagePlan.usagePlanId;
+    
+    // Assign Lambda functions to public properties
+    this.deadlinesFunction = deadlinesFunction;
+    this.authFunction = authFunction;
+    this.apiKeysFunction = apiKeysFunction;
+    this.webhooksFunction = webhooksFunction;
+    this.authorizerFunction = apiKeyAuthorizerFunction;
 
     // Store usage plan ID in SSM for Lambda to access
     new ssm.StringParameter(this, 'UsagePlanIdParameter', {
