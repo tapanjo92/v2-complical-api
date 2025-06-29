@@ -1,18 +1,23 @@
 # V2 CompliCal API
 
-Complete rewrite of CompliCal with modern architecture and enhanced security.
+Complete rewrite of CompliCal with modern architecture, enhanced security, and enterprise-grade monitoring.
 
 ## Project Structure
 
 ```
 v2-complical-api/
+├── backend/           # Lambda functions
+│   ├── handlers/     # API handlers
+│   └── package.json  # Dependencies
 ├── frontend/          # React SPA with Vite
 │   ├── src/          # Source code
-│   ├── dist/         # Build output
-│   └── README.md     # Frontend documentation
+│   └── dist/         # Build output
 ├── infrastructure/    # AWS CDK deployment
 │   ├── lib/          # CDK stacks
-│   └── deploy.sh     # Deployment script
+│   ├── scripts/      # Data loading scripts
+│   └── bin/          # CDK app entry
+├── DEPLOYMENT_GUIDE.md
+├── DATA_MANAGEMENT.md
 └── README.md         # This file
 ```
 
@@ -26,30 +31,55 @@ v2-complical-api/
 - 📊 Dashboard with API key management
 - 🚀 Optimized for CloudFront deployment
 
+### Backend
+- 🔐 Cognito authentication with httpOnly cookies
+- 🔑 SHA-256 hashed API keys
+- 📈 Rolling 30-day usage windows
+- 🪝 Webhook support for usage alerts
+- ⚡ Optimized DynamoDB with single GSI
+
 ### Infrastructure
 - ☁️ AWS CDK v2 with TypeScript
-- 🌐 CloudFront CDN with security headers
-- 🪣 S3 static hosting
-- 🔒 Origin Access Identity for security
-- 📝 CloudFront access logs
+- 🛡️ WAF protection against attacks
+- 📊 CloudWatch dashboards & alarms
+- 🏷️ Automatic resource tagging
+- 💰 Cost-optimized architecture
 
 ## Quick Start
 
-### Deploy Frontend
+### 🚀 Standard Deployment (Everything)
 
 ```bash
 cd infrastructure
-./deploy.sh
+npm run cdk -- deploy --all --require-approval never
 ```
 
-This will:
-1. Build the React frontend
-2. Deploy S3 bucket and CloudFront distribution
-3. Output the CloudFront URL
+This single command deploys:
+- DynamoDB tables with optimized GSIs
+- Cognito authentication
+- API Gateway with Lambda functions
+- React frontend on CloudFront
+- WAF security protection
+- CloudWatch monitoring & alarms
+- Automatic resource tagging
 
-### Local Development
+### 📊 Load Initial Data (One-time)
 
 ```bash
+cd infrastructure
+export TABLE_NAME=complical-deadlines-test
+npm run load-data
+```
+
+### 💻 Local Development
+
+```bash
+# Backend API
+cd backend
+npm install
+npm run test
+
+# Frontend
 cd frontend
 npm install
 npm run dev
@@ -78,8 +108,10 @@ npm run dev
 
 ## Documentation
 
-- [Frontend README](./frontend/README.md) - Frontend development guide
-- [Infrastructure README](./infrastructure/README.md) - Deployment guide
+- 📚 [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Complete deployment instructions
+- 💾 [DATA_MANAGEMENT.md](./DATA_MANAGEMENT.md) - Data loading and management
+- 🎨 [Frontend README](./frontend/README.md) - Frontend development guide
+- 🏗️ [Infrastructure README](./infrastructure/README.md) - CDK stack details
 
 ## Environment Variables
 
@@ -98,12 +130,42 @@ After deployment, you'll get:
 - S3 Bucket Name: `v2-complical-frontend-dev-{account-id}`
 - Distribution ID: For cache invalidation
 
-## Next Steps
+## Deployment to New AWS Account
 
-1. Deploy the frontend infrastructure
-2. Update the API URL in frontend `.env`
-3. Set up custom domain (optional)
-4. Configure monitoring (optional)
+```bash
+# 1. Configure AWS CLI
+aws configure
+
+# 2. Bootstrap CDK (first time only)
+cd infrastructure
+npm run cdk bootstrap
+
+# 3. Deploy everything
+npm run cdk -- deploy --all --require-approval never
+
+# 4. Load data
+export TABLE_NAME=complical-deadlines-test
+npm run load-data
+```
+
+## What's Included
+
+✅ **6 CDK Stacks** deployed automatically:
+- DynamoDB (3 tables)
+- Auth (Cognito)
+- API (Lambda + API Gateway)
+- Frontend (S3 + CloudFront)
+- WAF (Security rules)
+- Monitoring (Dashboard + Alarms)
+
+✅ **All Resources Tagged** with:
+- `name: complical-test`
+- `environment: test`
+- `project: complical`
+
+✅ **469 Compliance Deadlines**:
+- 421 Australian
+- 48 New Zealand
 
 ## License
 

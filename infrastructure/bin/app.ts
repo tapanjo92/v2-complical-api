@@ -7,6 +7,7 @@ import { ApiStack } from '../lib/api-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 import { WafStack } from '../lib/waf-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
+import { applyTags } from '../lib/tagging';
 
 const app = new cdk.App();
 
@@ -79,5 +80,8 @@ const monitoringStack = new MonitoringStack(app, `CompliCal-Monitoring-${environ
 });
 
 monitoringStack.addDependency(apiStack);
+
+// Apply tags to all resources
+applyTags(app, environment);
 
 app.synth();
