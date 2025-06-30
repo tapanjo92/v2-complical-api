@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Login Flow</title>
+</head>
+<body>
+    <h1>Testing Login Flow for tapmit200@gmail.com</h1>
+    
+    <div id="status"></div>
+    <div id="results"></div>
+    
+    <button onclick="testLogin()">Test Login</button>
+    
+    <script>
+        const API_URL = 'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test';
+        const FRONTEND_URL = 'https://d1v4wmxs6wjlqf.cloudfront.net';
+        
+        function log(message) {
+            const results = document.getElementById('results');
+            results.innerHTML += `<p>${new Date().toISOString()}: ${message}</p>`;
+            console.log(message);
+        }
+        
+        async function testLogin() {
+            log('Starting login test...');
+            
+            // Test with a new user first
+            const timestamp = Date.now();
+            const testEmail = `browser-test-${timestamp}@example.com`;
+            const testPassword = 'TestPassword123!';
+            
+            try {
+                // 1. Register
+                log('1. Registering test user...');
+                const registerResponse = await fetch(`${API_URL}/v1/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': FRONTEND_URL
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: testEmail,
+                        password: testPassword,
+                        companyName: 'Browser Test'
+                    })
+                });
+                
+                const registerData = await registerResponse.json();
+                log(`Register response: ${JSON.stringify(registerData)}`);
+                
+                // 2. Login
+                log('2. Testing login...');
+                const loginResponse = await fetch(`${API_URL}/v1/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': FRONTEND_URL
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: testEmail,
+                        password: testPassword
+                    })
+                });
+                
+                const loginData = await loginResponse.json();
+                log(`Login response: ${JSON.stringify(loginData)}`);
+                
+                // 3. Check what would happen in the frontend
+                log('3. Simulating frontend behavior...');
+                
+                // Save to localStorage (like auth store would)
+                const authState = {
+                    user: {
+                        email: loginData.email,
+                        companyName: loginData.companyName
+                    },
+                    csrfToken: loginData.csrfToken,
+                    idToken: loginData.idToken
+                };
+                
+                localStorage.setItem('complical-auth', JSON.stringify({
+                    state: authState,
+                    version: 0
+                }));
+                
+                log('Auth state saved to localStorage');
+                
+                // 4. Test authenticated API call
+                log('4. Testing authenticated API call...');
+                const usageResponse = await fetch(`${API_URL}/v1/auth/usage`, {
+                    method: 'GET',
+                    headers: {
+                        'Origin': FRONTEND_URL
+                    },
+                    credentials: 'include'
+                });
+                
+                const usageData = await usageResponse.json();
+                log(`Usage response (${usageResponse.status}): ${JSON.stringify(usageData)}`);
+                
+                // 5. Simulate navigation
+                log('5. What happens on navigation to dashboard:');
+                log('- Frontend would use window.location.href = "/dashboard"');
+                log('- This causes full page reload');
+                log('- On reload, auth state is loaded from localStorage');
+                log('- Dashboard route checks if user exists in store');
+                log('- If user exists, dashboard loads');
+                log('- If not, redirects to login');
+                
+                // Check current auth state
+                const savedAuth = localStorage.getItem('complical-auth');
+                log(`6. Current auth state in localStorage: ${savedAuth ? 'EXISTS' : 'NOT FOUND'}`);
+                
+                if (savedAuth) {
+                    const parsed = JSON.parse(savedAuth);
+                    log(`User in store: ${parsed.state?.user?.email || 'NOT FOUND'}`);
+                }
+                
+            } catch (error) {
+                log(`ERROR: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

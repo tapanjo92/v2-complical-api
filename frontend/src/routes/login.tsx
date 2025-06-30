@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,7 +24,6 @@ export const Route = createFileRoute('/login')({
 })
 
 function LoginPage() {
-  const navigate = useNavigate()
   const login = useAuthStore((state) => state.login)
   const isLoading = useAuthStore((state) => state.isLoading)
 
@@ -43,7 +42,10 @@ function LoginPage() {
         title: 'Welcome back!',
         description: 'You have been successfully logged in.',
       })
-      navigate({ to: '/dashboard' })
+      // Small delay to ensure localStorage is persisted before navigation
+      setTimeout(() => {
+        window.location.href = '/dashboard'
+      }, 100)
     } catch (error: any) {
       toast({
         title: 'Login failed',

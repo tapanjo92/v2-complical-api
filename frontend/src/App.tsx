@@ -22,11 +22,11 @@ declare module '@tanstack/react-router' {
 }
 
 function AppContent() {
-  const { user, idToken, refreshAuth } = useAuthStore()
+  const { user, refreshAuth } = useAuthStore()
   
   useEffect(() => {
-    // Try to refresh auth on mount if we have a user but no token
-    if (user && !idToken) {
+    // Try to refresh auth on mount if we have a user from previous session
+    if (user) {
       refreshAuth().catch(() => {
         // If refresh fails, user will be logged out automatically
       })

@@ -10,6 +10,12 @@ const {
 } = require('@aws-sdk/client-cognito-identity-provider');
 const { z } = require('zod');
 const crypto = require('crypto');
+const { 
+  createSession, 
+  deleteSession, 
+  getSessionIdFromCookie,
+  createLogoutCookie 
+} = require('../../utils/session-manager');
 
 const cognito = new CognitoIdentityProviderClient({});
 
@@ -21,8 +27,8 @@ const ENVIRONMENT = process.env.ENVIRONMENT || 'dev';
 // Cookie configuration based on environment
 const COOKIE_CONFIG = {
   httpOnly: true,
-  secure: ENVIRONMENT !== 'dev', // Only use secure in production
-  sameSite: 'Strict',
+  secure: true, // Always use secure since we're using HTTPS (CloudFront)
+  sameSite: 'None', // Changed from Strict to None for cross-origin requests
   path: '/',
   maxAge: 3600, // 1 hour in seconds
 };
@@ -218,8 +224,17 @@ exports.handler = async (event) => {
 
       const userResponse = await cognito.send(getUserCommand);
       const companyName = userResponse.UserAttributes?.find(attr => attr.Name === 'custom:company')?.Value || '';
+      const emailVerified = userResponse.UserAttributes?.find(attr => attr.Name === 'email_verified')?.Value === 'true';
       
-      // Create secure httpOnly cookies
+      // Create server-side session
+      const { session, cookie: sessionCookie } = await createSession({
+        id: email, // Using email as user ID for now
+        email,
+        emailVerified,
+        companyName
+      });
+      
+      // For backward compatibility, still create JWT cookies during migration
       const idTokenCookie = createCookie('id_token', authResponse.AuthenticationResult.IdToken, COOKIE_CONFIG);
       const accessTokenCookie = createCookie('access_token', authResponse.AuthenticationResult.AccessToken, COOKIE_CONFIG);
       const refreshTokenCookie = createCookie('refresh_token', authResponse.AuthenticationResult.RefreshToken, REFRESH_COOKIE_CONFIG);
@@ -235,11 +250,12 @@ exports.handler = async (event) => {
         statusCode: 200,
         headers: {
           ...headers,
-          'Set-Cookie': idTokenCookie,
+          'Set-Cookie': sessionCookie, // Primary auth method
         },
         multiValueHeaders: {
           'Set-Cookie': [
-            idTokenCookie,
+            sessionCookie, // Session cookie (new primary auth)
+            idTokenCookie, // Keep for backward compatibility
             accessTokenCookie,
             refreshTokenCookie,
             csrfCookie,
@@ -250,7 +266,8 @@ exports.handler = async (event) => {
           email,
           companyName,
           csrfToken, // Send CSRF token in response for client to use
-          // Also return ID token for Authorization header usage
+          sessionId: session.sessionId, // Include for debugging
+          // Also return ID token for Authorization header usage during migration
           // Note: This is still secure as the refresh token remains in httpOnly cookie
           idToken: authResponse.AuthenticationResult.IdToken,
         }),
@@ -259,6 +276,12 @@ exports.handler = async (event) => {
     
     // Handle logout
     if (path.endsWith('/logout')) {
+      // Delete server-side session
+      const sessionId = getSessionIdFromCookie(event.headers);
+      if (sessionId) {
+        await deleteSession(sessionId);
+      }
+      
       // Clear all cookies by setting them with past expiration
       const clearCookieConfig = { ...COOKIE_CONFIG, maxAge: 0 };
       
@@ -266,10 +289,11 @@ exports.handler = async (event) => {
         statusCode: 200,
         headers: {
           ...headers,
-          'Set-Cookie': createCookie('id_token', '', clearCookieConfig),
+          'Set-Cookie': createLogoutCookie(), // Clear session cookie
         },
         multiValueHeaders: {
           'Set-Cookie': [
+            createLogoutCookie(), // Clear session cookie
             createCookie('id_token', '', clearCookieConfig),
             createCookie('access_token', '', clearCookieConfig),
             createCookie('refresh_token', '', clearCookieConfig),

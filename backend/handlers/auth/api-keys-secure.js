@@ -4,6 +4,7 @@ const { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } = require
 const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
 const { z } = require('zod');
 const crypto = require('crypto');
+const { validateAuth, parseCookies } = require('../../utils/session-validator');
 
 const apigateway = new APIGatewayClient({});
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -97,33 +98,50 @@ exports.handler = async (event) => {
   };
 
   try {
-    // Extract JWT from cookies or Authorization header
-    const cookies = event.headers?.Cookie || event.headers?.cookie || '';
-    let idToken = cookies.split(';').find(c => c.trim().startsWith('id_token='))?.split('=')[1];
+    // Validate authentication (supports both sessions and JWT)
+    const authResult = await validateAuth(event);
+    let userEmail;
     
-    // If not in cookies, check Authorization header
-    if (!idToken) {
-      const authHeader = event.headers?.Authorization || event.headers?.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        idToken = authHeader.substring(7);
+    if (authResult.isValid && authResult.authType === 'session') {
+      // New session-based auth
+      userEmail = authResult.user.email;
+    } else if (authResult.authType === 'jwt' || authResult.authType === 'jwt-cookie') {
+      // Fallback to JWT validation for backward compatibility
+      const cookies = parseCookies(event.headers);
+      const idToken = authResult.token || cookies.id_token || cookies.idToken;
+      
+      if (!idToken) {
+        console.log('No id_token found in cookies or Authorization header');
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Unauthorized' }),
+        };
       }
-    }
-    
-    if (!idToken) {
-      console.log('No id_token found in cookies or Authorization header');
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
-    }
-    
-    // Decode JWT to get user email (in production, verify the JWT signature)
-    const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
-    const userEmail = payload.email;
-    
-    if (!userEmail) {
-      console.log('No email in JWT payload');
+      
+      try {
+        // Decode JWT to get user email (in production, verify the JWT signature)
+        const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+        userEmail = payload.email;
+        
+        if (!userEmail) {
+          console.log('No email in JWT payload');
+          return {
+            statusCode: 401,
+            headers,
+            body: JSON.stringify({ error: 'Unauthorized' }),
+          };
+        }
+      } catch (error) {
+        console.error('Failed to parse JWT token:', error);
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Invalid token' }),
+        };
+      }
+    } else {
+      // No valid auth found
       return {
         statusCode: 401,
         headers,

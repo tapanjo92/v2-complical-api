@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -32,7 +32,6 @@ export const Route = createFileRoute('/register')({
 })
 
 function RegisterPage() {
-  const navigate = useNavigate()
   const register = useAuthStore((state) => state.register)
   const isLoading = useAuthStore((state) => state.isLoading)
   const [password, setPassword] = useState('')
@@ -52,7 +51,10 @@ function RegisterPage() {
         title: 'Account created!',
         description: 'Welcome to CompliCal. Let\'s get you set up.',
       })
-      navigate({ to: '/dashboard' })
+      // Small delay to ensure localStorage is persisted before navigation
+      setTimeout(() => {
+        window.location.href = '/dashboard'
+      }, 100)
     } catch (error: any) {
       toast({
         title: 'Registration failed',

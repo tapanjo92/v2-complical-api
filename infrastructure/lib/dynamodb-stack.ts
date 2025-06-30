@@ -11,6 +11,7 @@ export class DynamoDBStack extends cdk.Stack {
   public readonly apiKeysTable: dynamodb.Table;
   public readonly apiUsageTable: dynamodb.Table;
   public readonly webhooksTable: dynamodb.Table;
+  public readonly sessionsTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: DynamoDBStackProps) {
     super(scope, id, props);
@@ -154,6 +155,48 @@ export class DynamoDBStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    // Sessions table for server-side session management
+    // Design optimized for:
+    // 1. Fast session lookup by sessionId (primary access pattern)
+    // 2. User session listing (GSI on userId)
+    // 3. Automatic expiration via TTL
+    this.sessionsTable = new dynamodb.Table(this, 'SessionsTable', {
+      tableName: `complical-sessions-${props.environment}`,
+      partitionKey: {
+        name: 'sessionId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      
+      // Enable TTL for automatic session expiration
+      timeToLiveAttribute: 'ttl',
+      
+      // Point-in-time recovery for production
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: props.environment === 'prod',
+      },
+      
+      removalPolicy: props.environment === 'prod' 
+        ? cdk.RemovalPolicy.RETAIN 
+        : cdk.RemovalPolicy.DESTROY,
+    });
+
+    // GSI for listing all sessions for a user
+    // Useful for "logout from all devices" functionality
+    this.sessionsTable.addGlobalSecondaryIndex({
+      indexName: 'userId-index',
+      partitionKey: {
+        name: 'userId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'createdAt',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // Outputs
     new cdk.CfnOutput(this, 'DeadlinesTableName', {
       value: this.deadlinesTable.tableName,
@@ -173,6 +216,11 @@ export class DynamoDBStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebhooksTableName', {
       value: this.webhooksTable.tableName,
       description: 'Webhooks DynamoDB table name',
+    });
+
+    new cdk.CfnOutput(this, 'SessionsTableName', {
+      value: this.sessionsTable.tableName,
+      description: 'Sessions DynamoDB table name',
     });
   }
 }

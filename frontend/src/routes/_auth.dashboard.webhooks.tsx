@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from '@/hooks/use-toast'
 import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
+import { cacheKeys } from '@/lib/cache-keys'
 import { AlertCircle, Bell, Copy, Plus, Trash2, Edit, CheckCircle, XCircle } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -56,12 +57,14 @@ function WebhooksPage() {
 
   // Load webhooks
   const { data: webhooks = [], isLoading } = useQuery({
-    queryKey: ['webhooks', user?.email],
+    queryKey: user?.email ? cacheKeys.webhooks(user.email) : [],
     queryFn: async () => {
       const response = await api.webhooks.list()
       return response.data.webhooks
     },
-    enabled: !!user,
+    enabled: !!user, // Only enable when user is available
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 
   // Create webhook mutation
@@ -71,7 +74,7 @@ function WebhooksPage() {
     },
     onSuccess: (response) => {
       setNewWebhookSecret(response.data.signingSecret)
-      queryClient.invalidateQueries({ queryKey: ['webhooks'] })
+      queryClient.invalidateQueries({ queryKey: user?.email ? cacheKeys.webhooks(user.email) : [] })
       setIsCreateOpen(false)
       setFormData({ url: '', events: [], description: '' })
       toast({
@@ -94,7 +97,7 @@ function WebhooksPage() {
       return api.webhooks.update(id, data)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['webhooks'] })
+      queryClient.invalidateQueries({ queryKey: user?.email ? cacheKeys.webhooks(user.email) : [] })
       setIsEditOpen(false)
       setSelectedWebhook(null)
       toast({
@@ -117,7 +120,7 @@ function WebhooksPage() {
       return api.webhooks.delete(id)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['webhooks'] })
+      queryClient.invalidateQueries({ queryKey: user?.email ? cacheKeys.webhooks(user.email) : [] })
       toast({
         title: 'Webhook deleted',
         description: 'Your webhook has been deleted successfully.',

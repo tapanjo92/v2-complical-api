@@ -14,20 +14,17 @@ export const apiClient = axios.create({
 
 // Request interceptor
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Add API key from local storage if available (for dev/testing)
     const devApiKey = localStorage.getItem('complical-dev-key')
     if (devApiKey) {
       config.headers['x-api-key'] = devApiKey
     }
     
-    // Add Authorization header with ID token if available
-    const idToken = useAuthStore.getState().idToken
-    if (idToken) {
-      config.headers['Authorization'] = `Bearer ${idToken}`
-    }
+    // Session-based auth: cookies are automatically sent with withCredentials: true
+    // No need to manually manage tokens anymore!
     
-    // Add CSRF token if available
+    // Add CSRF token if available for state-changing requests
     const csrfToken = useAuthStore.getState().csrfToken
     if (csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(config.method?.toUpperCase() || '')) {
       config.headers['X-CSRF-Token'] = csrfToken
@@ -54,8 +51,16 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true
       
+      // Log the 401 error for debugging
+      console.warn('401 Unauthorized error:', {
+        url: originalRequest.url,
+        headers: originalRequest.headers,
+      })
+      
       try {
+        // Try to refresh the session
         await useAuthStore.getState().refreshAuth()
+        // Retry the original request (session cookie will be automatically included)
         return apiClient(originalRequest)
       } catch (refreshError) {
         // Refresh failed, redirect to login

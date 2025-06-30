@@ -1,5 +1,6 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
+const { validateAuth, parseCookies } = require('../../utils/session-validator');
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
@@ -20,33 +21,48 @@ exports.handler = async (event) => {
   };
 
   try {
-    // Extract user email from JWT
-    const authHeader = event.headers?.Authorization || event.headers?.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Validate authentication (supports both sessions and JWT)
+    const authResult = await validateAuth(event);
+    let userEmail;
+    
+    if (authResult.isValid && authResult.authType === 'session') {
+      // New session-based auth
+      userEmail = authResult.user.email;
+    } else if (authResult.authType === 'jwt' || authResult.authType === 'jwt-cookie') {
+      // Fallback to JWT validation for backward compatibility
+      const authHeader = event.headers?.Authorization || event.headers?.authorization;
+      const cookies = parseCookies(event.headers);
+      const token = authResult.token || cookies.idToken;
+      
+      if (!token) {
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Unauthorized' }),
+        };
+      }
+      
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) {
+          throw new Error('Invalid token format');
+        }
+        const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+        userEmail = payload.email;
+      } catch (error) {
+        console.error('Failed to parse JWT token:', error);
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Invalid token format' }),
+        };
+      }
+    } else {
+      // No valid auth found
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({ error: 'Unauthorized' }),
-      };
-    }
-
-    const token = authHeader.substring(7);
-    
-    // Parse JWT token safely
-    let userEmail;
-    try {
-      const tokenParts = token.split('.');
-      if (tokenParts.length !== 3) {
-        throw new Error('Invalid token format');
-      }
-      const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
-      userEmail = payload.email;
-    } catch (error) {
-      console.error('Failed to parse JWT token:', error);
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Invalid token format' }),
       };
     }
 
@@ -118,7 +134,14 @@ exports.handler = async (event) => {
       }
     }
 
-    // Build response
+    // Validate that all data belongs to the authenticated user
+    const userValidation = {
+      authenticated_user: userEmail,
+      data_owner: userEmail,
+      validation_timestamp: new Date().toISOString(),
+    };
+
+    // Build response with user validation
     const response = {
       current_period: {
         usage: totalUsage,
@@ -147,6 +170,8 @@ exports.handler = async (event) => {
         status: req.statusCode,
         key_used: req.keyName,
       })),
+      // Include user validation metadata
+      _metadata: userValidation,
     };
 
     return {

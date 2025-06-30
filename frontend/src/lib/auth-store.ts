@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { api } from './api-client'
 import { queryClient } from '@/lib/query-client'
+import { generateSessionId, clearSessionId, cacheKeys } from './cache-keys'
 
 interface User {
   email: string
@@ -26,7 +27,6 @@ interface ApiKey {
 interface AuthState {
   user: User | null
   csrfToken: string | null
-  idToken: string | null
   apiKeys: ApiKey[]
   isLoading: boolean
   
@@ -47,7 +47,6 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       csrfToken: null,
-      idToken: null,
       apiKeys: [],
       isLoading: false,
       
@@ -58,40 +57,40 @@ export const useAuthStore = create<AuthState>()(
           set({ 
             user: null, 
             csrfToken: null, 
-            idToken: null, 
             apiKeys: [],
             isLoading: true 
           })
           
-          // Clear only auth-related queries, not usage data
-          queryClient.removeQueries({ queryKey: ['api-keys'] })
-          queryClient.removeQueries({ queryKey: ['webhooks'] })
+          // CRITICAL: Clear ALL queries to prevent data bleeding between users
+          await queryClient.clear()
+          
+          // Generate new session ID for cache isolation
+          generateSessionId()
           
           const response = await api.auth.login({ email, password })
-          const { email: userEmail, companyName, csrfToken, idToken } = response.data
+          const { email: userEmail, companyName, csrfToken } = response.data
           
           set({
             user: { email: userEmail, companyName },
             csrfToken,
-            idToken,
             isLoading: false,
           })
           
-          // Invalidate old usage queries and prefetch new ones
-          await queryClient.removeQueries({ queryKey: ['usage'] })
-          
-          // Prefetch usage data for the new user
-          queryClient.prefetchQuery({
-            queryKey: ['usage', 'dashboard', userEmail],
-            queryFn: async () => {
-              const response = await api.usage.get()
-              return response.data
-            },
-            staleTime: 5 * 1000,
-          })
-          
-          // Load API keys after login - this will fetch fresh data for the new user
-          await get().loadApiKeys()
+          // CRITICAL: Force immediate data fetch for the new user
+          // We must AWAIT to ensure data is loaded before navigation
+          await Promise.all([
+            // Fetch usage data with session-isolated key
+            queryClient.fetchQuery({
+              queryKey: cacheKeys.usage(userEmail),
+              queryFn: async () => {
+                const response = await api.usage.get()
+                return response.data
+              },
+              staleTime: 60 * 1000,
+            }),
+            // Load API keys
+            get().loadApiKeys()
+          ])
         } catch (error) {
           set({ isLoading: false })
           throw error
@@ -115,29 +114,31 @@ export const useAuthStore = create<AuthState>()(
           await api.auth.logout()
         } finally {
           // Clear all state
-          set({ user: null, csrfToken: null, idToken: null, apiKeys: [] })
+          set({ user: null, csrfToken: null, apiKeys: [] })
           // Clear any stored dev API key
           localStorage.removeItem('complical-dev-key')
           // Clear the persisted auth state
           localStorage.removeItem('complical-auth')
           // Clear all React Query cache after logout
-          queryClient.clear()
+          await queryClient.cancelQueries() // Cancel any in-flight queries
+          await queryClient.clear() // Clear all cache
+          // Clear session ID to invalidate all cached keys
+          clearSessionId()
         }
       },
       
       refreshAuth: async () => {
         try {
           const response = await api.auth.refresh()
-          const { email, companyName, csrfToken, idToken } = response.data
+          const { email, companyName, csrfToken } = response.data
           
           set({
             user: { email, companyName },
             csrfToken,
-            idToken,
           })
         } catch (error) {
           // If refresh fails, clear auth state
-          set({ user: null, csrfToken: null, idToken: null, apiKeys: [] })
+          set({ user: null, csrfToken: null, apiKeys: [] })
           throw error
         }
       },
@@ -199,7 +200,6 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ 
         user: state.user,
-        idToken: state.idToken,
         // Don't persist CSRF token or API keys for security
       }),
     }

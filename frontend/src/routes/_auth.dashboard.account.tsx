@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from '@/hooks/use-toast'
 import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
+import { cacheKeys } from '@/lib/cache-keys'
 import { User, Mail, Building, Calendar, Lock, Bell, Save } from 'lucide-react'
 import { format } from 'date-fns'
 import { PasswordInput } from '@/components/PasswordInput'
@@ -49,15 +50,17 @@ function AccountSettings() {
   
   // Load saved email preferences
   const { data: savedPreferences, isLoading: loadingPreferences, refetch: refetchPreferences } = useQuery({
-    queryKey: ['email-preferences', user?.email],
+    queryKey: user?.email ? cacheKeys.emailPreferences(user.email) : [],
     queryFn: async () => {
       const response = await api.auth.getEmailPreferences()
       return response.data
     },
-    enabled: !!user,
+    enabled: !!user, // Only enable when user is available
     staleTime: 30 * 1000, // Cache for 30 seconds only
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: true, // Always refetch on mount
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
   
   // Force refresh on mount if coming from email verification
@@ -123,7 +126,7 @@ function AccountSettings() {
     },
     onSuccess: () => {
       // Invalidate cache to ensure fresh data on next load
-      queryClient.invalidateQueries({ queryKey: ['email-preferences', user?.email] })
+      queryClient.invalidateQueries({ queryKey: user?.email ? cacheKeys.emailPreferences(user.email) : [] })
       
       toast({
         title: 'Email preferences saved',

@@ -1,7 +1,7 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
-import { useAuthStore } from '@/lib/auth-store'
-import { useEffect } from 'react'
+import { useAuthReady } from '@/hooks/use-auth-ready'
+import { cacheKeys } from '@/lib/cache-keys'
 
 interface UsageData {
   current_period: {
@@ -31,45 +31,45 @@ interface UsageData {
     status: number
     key_used: string
   }>
+  _metadata?: {
+    authenticated_user: string
+    data_owner: string
+    validation_timestamp: string
+  }
 }
 
 export function useUsageData() {
-  const { user } = useAuthStore()
-  const queryClient = useQueryClient()
+  const { user, isAuthenticated } = useAuthReady()
   
-  // Create a stable query key
-  const queryKey = ['usage', 'dashboard', user?.email]
+  // Use session-isolated cache key
+  const queryKey = user?.email ? cacheKeys.usage(user.email) : []
   
   const query = useQuery<UsageData>({
     queryKey,
     queryFn: async () => {
       const response = await api.usage.get()
-      return response.data
+      const data = response.data
+      
+      // Validate that the data belongs to the current user
+      if (data._metadata && data._metadata.data_owner !== user?.email) {
+        console.error('Data validation failed: response data does not belong to current user')
+        throw new Error('Invalid user data received')
+      }
+      
+      return data
     },
     // Keep data fresh but avoid excessive refetching
-    staleTime: 5 * 1000, // Data is fresh for 5 seconds
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    staleTime: 30 * 1000, // Data is fresh for 30 seconds
+    gcTime: 60 * 1000, // CRITICAL: Only keep in cache for 1 minute to prevent data bleeding
     refetchOnWindowFocus: true,
-    refetchInterval: 30 * 1000, // Auto-refresh every 30 seconds
-    enabled: !!user,
-    // Critical: Return cached data immediately while fetching
-    initialData: () => {
-      // Try to get data from cache first
-      const cachedData = queryClient.getQueryData<UsageData>(queryKey)
-      return cachedData
-    },
-    // Keep showing stale data while refetching
-    placeholderData: (previousData) => previousData,
-    // Network mode to handle offline gracefully
+    refetchInterval: false, // Disable auto-refresh to prevent continuous polling
+    enabled: !!user?.email && isAuthenticated, // Only enable with valid user
+    // REMOVED initialData - it was causing stale data to persist across users
+    // REMOVED placeholderData - we want fresh data for each user
     networkMode: 'online',
   })
   
-  // Prefetch on mount if we have cached data
-  useEffect(() => {
-    if (user && !query.data) {
-      query.refetch()
-    }
-  }, [user])
+  // Remove the useEffect - data will be fetched via the query when enabled
   
   // Provide default values to prevent UI showing 0
   const safeData = {

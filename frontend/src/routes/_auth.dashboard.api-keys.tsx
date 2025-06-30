@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { api } from '@/lib/api-client'
 import { useAuthStore } from '@/lib/auth-store'
 import { toast } from '@/hooks/use-toast'
+import { cacheKeys } from '@/lib/cache-keys'
 import { Key, Plus, Trash2, Copy, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -30,12 +31,14 @@ function ApiKeysPage() {
   const { user } = useAuthStore()
   
   const { data, isLoading } = useQuery({
-    queryKey: ['apiKeys', user?.email],
+    queryKey: user?.email ? cacheKeys.apiKeys(user.email) : [],
     queryFn: async () => {
       const response = await api.apiKeys.list()
       return response.data
     },
-    enabled: !!user,
+    enabled: !!user?.email, // Only enable when user is available
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 
   // Create API key mutation
@@ -45,7 +48,7 @@ function ApiKeysPage() {
       return response.data
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
+      queryClient.invalidateQueries({ queryKey: user?.email ? cacheKeys.apiKeys(user.email) : [] })
       setNewKeyInfo({ key: data.apiKey, id: data.id })
       setKeyName('')
       setKeyDescription('')
@@ -70,7 +73,7 @@ function ApiKeysPage() {
       await api.apiKeys.delete(keyId)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['apiKeys'] })
+      queryClient.invalidateQueries({ queryKey: user?.email ? cacheKeys.apiKeys(user.email) : [] })
       setDeleteKeyId(null)
       toast({
         title: 'API key deleted',

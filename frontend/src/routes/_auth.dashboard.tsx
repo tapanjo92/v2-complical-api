@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/lib/auth-store'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { queryClient } from '@/lib/query-client'
 
 export const Route = createFileRoute('/_auth/dashboard')({
   component: DashboardLayout,
@@ -23,6 +24,11 @@ function DashboardLayout() {
 
   const handleLogout = async () => {
     await logout()
+    // Ensure all queries are invalidated and cache is fully cleared
+    await queryClient.invalidateQueries()
+    await queryClient.cancelQueries()
+    // Small delay to ensure all cleanup is complete
+    await new Promise(resolve => setTimeout(resolve, 100))
     window.location.href = '/'
   }
 

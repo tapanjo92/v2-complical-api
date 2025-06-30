@@ -18,6 +18,7 @@ export interface ApiStackProps extends cdk.StackProps {
   apiKeysTable: dynamodb.Table;
   apiUsageTable: dynamodb.Table;
   webhooksTable: dynamodb.Table;
+  sessionsTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
 }
@@ -37,8 +38,8 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for deadlines
     const deadlinesFunction = new lambda.Function(this, 'DeadlinesFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'deadlines.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/deadlines.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         TABLE_NAME: props.deadlinesTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
@@ -51,8 +52,8 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for simplified deadlines (Calendarific-style)
     const simplifiedDeadlinesFunction = new lambda.Function(this, 'SimplifiedDeadlinesFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'simplified-deadlines.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/simplified-deadlines.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         TABLE_NAME: props.deadlinesTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
@@ -65,12 +66,13 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for auth
     const authFunction = new lambda.Function(this, 'AuthFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'auth/auth-secure.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/auth/auth-secure.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         USER_POOL_ID: props.userPool.userPoolId,
         USER_POOL_CLIENT_ID: props.userPoolClient.userPoolClientId,
         API_KEYS_TABLE: props.apiKeysTable.tableName,
+        SESSIONS_TABLE: props.sessionsTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
       timeout: cdk.Duration.seconds(30),
@@ -81,11 +83,12 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for API keys
     const apiKeysFunction = new lambda.Function(this, 'ApiKeysFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'auth/api-keys-secure.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/auth/api-keys-secure.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         TABLE_NAME: props.apiKeysTable.tableName,
         USER_POOL_ID: props.userPool.userPoolId,
+        SESSIONS_TABLE: props.sessionsTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
       timeout: cdk.Duration.seconds(30),
@@ -96,11 +99,12 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for usage analytics
     const usageFunction = new lambda.Function(this, 'UsageFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'auth/usage.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/auth/usage.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         API_KEYS_TABLE: props.apiKeysTable.tableName,
         API_USAGE_TABLE: props.apiUsageTable.tableName,
+        SESSIONS_TABLE: props.sessionsTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
       timeout: cdk.Duration.seconds(10),
@@ -111,8 +115,8 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for API key authorizer
     const apiKeyAuthorizerFunction = new lambda.Function(this, 'ApiKeyAuthorizerFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'auth/api-key-authorizer.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/auth/api-key-authorizer.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         TABLE_NAME: props.apiKeysTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
@@ -125,8 +129,8 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for processing usage logs
     const processUsageLogsFunction = new lambda.Function(this, 'ProcessUsageLogsFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'process-usage-logs.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/process-usage-logs.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         API_KEYS_TABLE: props.apiKeysTable.tableName,
         API_USAGE_TABLE: props.apiUsageTable.tableName,
@@ -140,10 +144,11 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for webhook management
     const webhooksFunction = new lambda.Function(this, 'WebhooksFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'auth/webhooks.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/auth/webhooks.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         WEBHOOKS_TABLE: props.webhooksTable.tableName,
+        SESSIONS_TABLE: props.sessionsTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
       },
       timeout: cdk.Duration.seconds(30),
@@ -154,8 +159,8 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for processing webhook deliveries
     const processWebhooksFunction = new lambda.Function(this, 'ProcessWebhooksFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'process-webhooks.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/process-webhooks.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         WEBHOOKS_TABLE: props.webhooksTable.tableName,
         API_KEYS_TABLE: props.apiKeysTable.tableName,
@@ -178,6 +183,12 @@ export class ApiStack extends cdk.Stack {
     props.apiUsageTable.grantReadData(usageFunction);
     props.webhooksTable.grantReadWriteData(webhooksFunction);
     props.webhooksTable.grantReadWriteData(processWebhooksFunction);
+    
+    // Grant sessions table permissions
+    props.sessionsTable.grantReadWriteData(authFunction); // Create, read, delete sessions
+    props.sessionsTable.grantReadData(apiKeysFunction); // Validate sessions
+    props.sessionsTable.grantReadData(webhooksFunction); // Validate sessions
+    props.sessionsTable.grantReadData(usageFunction); // Validate sessions
 
     // Grant SES permissions to webhook processor for email notifications
     processWebhooksFunction.addToRolePolicy(new iam.PolicyStatement({
@@ -267,7 +278,7 @@ export class ApiStack extends cdk.Stack {
     // Create a dedicated health check Lambda with NO permissions
     const healthCheckFunction = new lambda.Function(this, 'HealthCheckFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'index.handler',
+      handler: 'handlers/health.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {
           return {
@@ -316,8 +327,8 @@ export class ApiStack extends cdk.Stack {
     // Email verification endpoint (separate Lambda for better isolation)
     const verifyEmailFunction = new lambda.Function(this, 'VerifyEmailFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'auth/verify-email.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      handler: 'handlers/auth/verify-email.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         API_KEYS_TABLE: props.apiKeysTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
