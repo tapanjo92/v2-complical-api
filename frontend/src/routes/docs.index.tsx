@@ -13,25 +13,31 @@ function DocsIndex() {
     <div>
       {/* Header */}
       <div className="mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        <h1 className="text-5xl font-bold text-gray-900 mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
           CompliCal API Documentation
         </h1>
-        <p className="text-xl text-gray-600 mb-8">
-          The most comprehensive compliance deadline API for Australian and New Zealand businesses.
-          Get real-time access to tax deadlines, filing requirements, and regulatory dates.
+        <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+          Enterprise-grade compliance deadline API for Australian and New Zealand businesses.
+          Get real-time access to 469+ tax deadlines, regulatory dates, and filing requirements 
+          with 99.9% uptime and sub-100ms response times.
         </p>
         
         <div className="flex flex-wrap gap-4">
-          <Link to="/docs/quickstart">
-            <Button size="lg">
-              <Zap className="mr-2 h-5 w-5" />
-              Quick Start
-              <ArrowRight className="ml-2 h-4 w-4" />
+          <Link to="/docs/overview">
+            <Button size="lg" className="shadow-lg hover:shadow-xl transition-shadow">
+              <ArrowRight className="mr-2 h-5 w-5" />
+              Start Here
             </Button>
           </Link>
-          <Link to="/docs/api-global">
-            <Button size="lg" variant="outline">
-              <FileText className="mr-2 h-5 w-5" />
+          <Link to="/docs/quickstart">
+            <Button size="lg" variant="outline" className="shadow hover:shadow-lg transition-shadow">
+              <Zap className="mr-2 h-5 w-5" />
+              Quick Start Guide
+            </Button>
+          </Link>
+          <Link to="/docs/api-reference">
+            <Button size="lg" variant="outline" className="shadow hover:shadow-lg transition-shadow">
+              <Code className="mr-2 h-5 w-5" />
               API Reference
             </Button>
           </Link>

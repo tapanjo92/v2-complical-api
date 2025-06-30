@@ -17,8 +17,13 @@ import { Route as DocsRouteImport } from './routes/docs'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsWebhooksRouteImport } from './routes/docs.webhooks'
 import { Route as DocsQuickstartRouteImport } from './routes/docs.quickstart'
+import { Route as DocsOverviewRouteImport } from './routes/docs.overview'
+import { Route as DocsErrorsRouteImport } from './routes/docs.errors'
+import { Route as DocsBestPracticesRouteImport } from './routes/docs.best-practices'
 import { Route as DocsAuthenticationRouteImport } from './routes/docs.authentication'
+import { Route as DocsApiReferenceRouteImport } from './routes/docs.api-reference'
 import { Route as DocsApiGlobalRouteImport } from './routes/docs.api-global'
 import { Route as AuthDashboardRouteImport } from './routes/_auth.dashboard'
 import { Route as AuthDashboardIndexRouteImport } from './routes/_auth.dashboard.index'
@@ -74,14 +79,39 @@ const DocsIndexRoute = DocsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DocsRoute,
 } as any)
+const DocsWebhooksRoute = DocsWebhooksRouteImport.update({
+  id: '/webhooks',
+  path: '/webhooks',
+  getParentRoute: () => DocsRoute,
+} as any)
 const DocsQuickstartRoute = DocsQuickstartRouteImport.update({
   id: '/quickstart',
   path: '/quickstart',
   getParentRoute: () => DocsRoute,
 } as any)
+const DocsOverviewRoute = DocsOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsErrorsRoute = DocsErrorsRouteImport.update({
+  id: '/errors',
+  path: '/errors',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsBestPracticesRoute = DocsBestPracticesRouteImport.update({
+  id: '/best-practices',
+  path: '/best-practices',
+  getParentRoute: () => DocsRoute,
+} as any)
 const DocsAuthenticationRoute = DocsAuthenticationRouteImport.update({
   id: '/authentication',
   path: '/authentication',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsApiReferenceRoute = DocsApiReferenceRouteImport.update({
+  id: '/api-reference',
+  path: '/api-reference',
   getParentRoute: () => DocsRoute,
 } as any)
 const DocsApiGlobalRoute = DocsApiGlobalRouteImport.update({
@@ -125,8 +155,13 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsLazyRoute
   '/dashboard': typeof AuthDashboardRouteWithChildren
   '/docs/api-global': typeof DocsApiGlobalRoute
+  '/docs/api-reference': typeof DocsApiReferenceRoute
   '/docs/authentication': typeof DocsAuthenticationRoute
+  '/docs/best-practices': typeof DocsBestPracticesRoute
+  '/docs/errors': typeof DocsErrorsRoute
+  '/docs/overview': typeof DocsOverviewRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/webhooks': typeof DocsWebhooksRoute
   '/docs/': typeof DocsIndexRoute
   '/dashboard/account': typeof AuthDashboardAccountRoute
   '/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
@@ -141,8 +176,13 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyLazyRoute
   '/terms': typeof TermsLazyRoute
   '/docs/api-global': typeof DocsApiGlobalRoute
+  '/docs/api-reference': typeof DocsApiReferenceRoute
   '/docs/authentication': typeof DocsAuthenticationRoute
+  '/docs/best-practices': typeof DocsBestPracticesRoute
+  '/docs/errors': typeof DocsErrorsRoute
+  '/docs/overview': typeof DocsOverviewRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/webhooks': typeof DocsWebhooksRoute
   '/docs': typeof DocsIndexRoute
   '/dashboard/account': typeof AuthDashboardAccountRoute
   '/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
@@ -161,8 +201,13 @@ export interface FileRoutesById {
   '/terms': typeof TermsLazyRoute
   '/_auth/dashboard': typeof AuthDashboardRouteWithChildren
   '/docs/api-global': typeof DocsApiGlobalRoute
+  '/docs/api-reference': typeof DocsApiReferenceRoute
   '/docs/authentication': typeof DocsAuthenticationRoute
+  '/docs/best-practices': typeof DocsBestPracticesRoute
+  '/docs/errors': typeof DocsErrorsRoute
+  '/docs/overview': typeof DocsOverviewRoute
   '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/webhooks': typeof DocsWebhooksRoute
   '/docs/': typeof DocsIndexRoute
   '/_auth/dashboard/account': typeof AuthDashboardAccountRoute
   '/_auth/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
@@ -181,8 +226,13 @@ export interface FileRouteTypes {
     | '/terms'
     | '/dashboard'
     | '/docs/api-global'
+    | '/docs/api-reference'
     | '/docs/authentication'
+    | '/docs/best-practices'
+    | '/docs/errors'
+    | '/docs/overview'
     | '/docs/quickstart'
+    | '/docs/webhooks'
     | '/docs/'
     | '/dashboard/account'
     | '/dashboard/api-keys'
@@ -197,8 +247,13 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/terms'
     | '/docs/api-global'
+    | '/docs/api-reference'
     | '/docs/authentication'
+    | '/docs/best-practices'
+    | '/docs/errors'
+    | '/docs/overview'
     | '/docs/quickstart'
+    | '/docs/webhooks'
     | '/docs'
     | '/dashboard/account'
     | '/dashboard/api-keys'
@@ -216,8 +271,13 @@ export interface FileRouteTypes {
     | '/terms'
     | '/_auth/dashboard'
     | '/docs/api-global'
+    | '/docs/api-reference'
     | '/docs/authentication'
+    | '/docs/best-practices'
+    | '/docs/errors'
+    | '/docs/overview'
     | '/docs/quickstart'
+    | '/docs/webhooks'
     | '/docs/'
     | '/_auth/dashboard/account'
     | '/_auth/dashboard/api-keys'
@@ -301,6 +361,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsIndexRouteImport
       parentRoute: typeof DocsRoute
     }
+    '/docs/webhooks': {
+      id: '/docs/webhooks'
+      path: '/webhooks'
+      fullPath: '/docs/webhooks'
+      preLoaderRoute: typeof DocsWebhooksRouteImport
+      parentRoute: typeof DocsRoute
+    }
     '/docs/quickstart': {
       id: '/docs/quickstart'
       path: '/quickstart'
@@ -308,11 +375,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsQuickstartRouteImport
       parentRoute: typeof DocsRoute
     }
+    '/docs/overview': {
+      id: '/docs/overview'
+      path: '/overview'
+      fullPath: '/docs/overview'
+      preLoaderRoute: typeof DocsOverviewRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/errors': {
+      id: '/docs/errors'
+      path: '/errors'
+      fullPath: '/docs/errors'
+      preLoaderRoute: typeof DocsErrorsRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/best-practices': {
+      id: '/docs/best-practices'
+      path: '/best-practices'
+      fullPath: '/docs/best-practices'
+      preLoaderRoute: typeof DocsBestPracticesRouteImport
+      parentRoute: typeof DocsRoute
+    }
     '/docs/authentication': {
       id: '/docs/authentication'
       path: '/authentication'
       fullPath: '/docs/authentication'
       preLoaderRoute: typeof DocsAuthenticationRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/api-reference': {
+      id: '/docs/api-reference'
+      path: '/api-reference'
+      fullPath: '/docs/api-reference'
+      preLoaderRoute: typeof DocsApiReferenceRouteImport
       parentRoute: typeof DocsRoute
     }
     '/docs/api-global': {
@@ -390,15 +485,25 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface DocsRouteChildren {
   DocsApiGlobalRoute: typeof DocsApiGlobalRoute
+  DocsApiReferenceRoute: typeof DocsApiReferenceRoute
   DocsAuthenticationRoute: typeof DocsAuthenticationRoute
+  DocsBestPracticesRoute: typeof DocsBestPracticesRoute
+  DocsErrorsRoute: typeof DocsErrorsRoute
+  DocsOverviewRoute: typeof DocsOverviewRoute
   DocsQuickstartRoute: typeof DocsQuickstartRoute
+  DocsWebhooksRoute: typeof DocsWebhooksRoute
   DocsIndexRoute: typeof DocsIndexRoute
 }
 
 const DocsRouteChildren: DocsRouteChildren = {
   DocsApiGlobalRoute: DocsApiGlobalRoute,
+  DocsApiReferenceRoute: DocsApiReferenceRoute,
   DocsAuthenticationRoute: DocsAuthenticationRoute,
+  DocsBestPracticesRoute: DocsBestPracticesRoute,
+  DocsErrorsRoute: DocsErrorsRoute,
+  DocsOverviewRoute: DocsOverviewRoute,
   DocsQuickstartRoute: DocsQuickstartRoute,
+  DocsWebhooksRoute: DocsWebhooksRoute,
   DocsIndexRoute: DocsIndexRoute,
 }
 

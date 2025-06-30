@@ -9,6 +9,7 @@ export function useAuthReady() {
   const [isReady, setIsReady] = useState(false)
   const user = useAuthStore((state) => state.user)
   
+  
   useEffect(() => {
     // Give the store a moment to hydrate from localStorage
     const timeout = setTimeout(() => {

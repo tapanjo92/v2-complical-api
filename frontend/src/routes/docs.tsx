@@ -17,7 +17,6 @@ import {
   Search,
   Menu,
   X,
-  ChevronRight,
   ExternalLink
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
@@ -30,28 +29,25 @@ const navigation = [
   {
     title: 'Getting Started',
     items: [
-      { name: 'Introduction', href: '/docs', icon: Book },
+      { name: 'Overview', href: '/docs/overview', icon: Book },
       { name: 'Quick Start', href: '/docs/quickstart', icon: Zap },
       { name: 'Authentication', href: '/docs/authentication', icon: Key },
-      { name: 'Rate Limits', href: '/docs/rate-limits', icon: Clock },
     ],
   },
   {
     title: 'API Reference',
     items: [
-      { name: 'Global Endpoint', href: '/docs/api/global', icon: Globe },
-      { name: 'Australia (AU)', href: '/docs/api/australia', icon: FileText },
-      { name: 'New Zealand (NZ)', href: '/docs/api/new-zealand', icon: FileText },
-      { name: 'API Keys', href: '/docs/api/keys', icon: Key },
+      { name: 'All Endpoints', href: '/docs/api-reference', icon: Code },
+      { name: 'Global Endpoint', href: '/docs/api-global', icon: Globe },
+      { name: 'Error Codes', href: '/docs/errors', icon: AlertCircle },
     ],
   },
   {
-    title: 'Guides',
+    title: 'Features',
     items: [
-      { name: 'Error Handling', href: '/docs/guides/errors', icon: AlertCircle },
-      { name: 'Webhooks', href: '/docs/guides/webhooks', icon: Webhook },
-      { name: 'Best Practices', href: '/docs/guides/best-practices', icon: Shield },
-      { name: 'Migration Guide', href: '/docs/guides/migration', icon: ChevronRight },
+      { name: 'Webhooks', href: '/docs/webhooks', icon: Webhook },
+      { name: 'Rate Limiting', href: '/docs/rate-limits', icon: Clock },
+      { name: 'Best Practices', href: '/docs/best-practices', icon: Shield },
     ],
   },
   {
@@ -79,7 +75,10 @@ function DocsLayout() {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-6 border-b">
-            <Link to="/" className="flex items-center space-x-2">
+            <Link 
+              to="/dashboard" 
+              className="flex items-center space-x-2"
+            >
               <Code className="h-6 w-6 text-blue-600" />
               <span className="font-semibold text-lg">CompliCal</span>
               <span className="text-sm text-gray-500">Docs</span>

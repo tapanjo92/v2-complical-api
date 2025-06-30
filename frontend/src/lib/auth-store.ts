@@ -136,9 +136,12 @@ export const useAuthStore = create<AuthState>()(
             user: { email, companyName },
             csrfToken,
           })
-        } catch (error) {
-          // If refresh fails, clear auth state
-          set({ user: null, csrfToken: null, apiKeys: [] })
+        } catch (error: any) {
+          console.error('Auth refresh failed:', error)
+          // Only clear auth state if it's a 401/403 error (not network/CORS issues)
+          if (error?.response?.status === 401 || error?.response?.status === 403) {
+            set({ user: null, csrfToken: null, apiKeys: [] })
+          }
           throw error
         }
       },

@@ -25,11 +25,21 @@ function AppContent() {
   const { user, refreshAuth } = useAuthStore()
   
   useEffect(() => {
-    // Try to refresh auth on mount if we have a user from previous session
-    if (user) {
-      refreshAuth().catch(() => {
-        // If refresh fails, user will be logged out automatically
-      })
+    // Only refresh auth on initial app load, not on navigation
+    const isInitialLoad = !sessionStorage.getItem('appInitialized')
+    
+    if (user && isInitialLoad) {
+      sessionStorage.setItem('appInitialized', 'true')
+      
+      // Refresh auth in background without blocking
+      refreshAuth()
+        .then(() => {
+          console.log('Auth refreshed successfully')
+        })
+        .catch(() => {
+          // Don't do anything on refresh failure - user stays logged in
+          console.log('Auth refresh failed, keeping existing session')
+        })
     }
   }, [])
   

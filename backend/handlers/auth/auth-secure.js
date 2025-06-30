@@ -28,7 +28,7 @@ const ENVIRONMENT = process.env.ENVIRONMENT || 'dev';
 const COOKIE_CONFIG = {
   httpOnly: true,
   secure: true, // Always use secure since we're using HTTPS (CloudFront)
-  sameSite: 'None', // Changed from Strict to None for cross-origin requests
+  sameSite: 'Lax', // Lax allows same-site navigation while preventing CSRF
   path: '/',
   maxAge: 3600, // 1 hour in seconds
 };

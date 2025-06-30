@@ -3,12 +3,15 @@ import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CalendarDays, Shield, Zap, Globe2, Code2 } from 'lucide-react'
+import { useAuthReady } from '@/hooks/use-auth-ready'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
 })
 
 function HomePage() {
+  const { isAuthenticated, user } = useAuthReady()
+  
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
@@ -25,12 +28,23 @@ function HomePage() {
             <Link to="/pricing" className="text-sm font-medium hover:text-primary">
               Pricing
             </Link>
-            <Link to="/login">
-              <Button variant="outline" size="sm">Sign In</Button>
-            </Link>
-            <Link to="/register">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard">
+                  <Button variant="outline" size="sm">Dashboard</Button>
+                </Link>
+                <span className="text-sm text-gray-600">{user?.email}</span>
+              </>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="outline" size="sm">Sign In</Button>
+                </Link>
+                <Link to="/register">
+                  <Button size="sm">Get Started</Button>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
