@@ -9,6 +9,7 @@ import { ErrorFallback } from '@/components/ErrorFallback'
 import { useAuthStore } from '@/lib/auth-store'
 import { queryClient } from '@/lib/query-client'
 import { UsageProvider } from '@/providers/usage-provider'
+import { EmailVerification } from '@/components/EmailVerification'
 
 // Create a new router instance
 const router = createRouter({ routeTree })
@@ -31,6 +32,16 @@ function AppContent() {
       })
     }
   }, [])
+  
+  // Check if this is the email verification page
+  if (window.location.pathname === '/verify-email') {
+    return (
+      <>
+        <EmailVerification />
+        <Toaster />
+      </>
+    )
+  }
   
   return (
     <UsageProvider>

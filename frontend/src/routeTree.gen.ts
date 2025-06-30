@@ -13,8 +13,13 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsQuickstartRouteImport } from './routes/docs.quickstart'
+import { Route as DocsAuthenticationRouteImport } from './routes/docs.authentication'
+import { Route as DocsApiGlobalRouteImport } from './routes/docs.api-global'
 import { Route as AuthDashboardRouteImport } from './routes/_auth.dashboard'
 import { Route as AuthDashboardIndexRouteImport } from './routes/_auth.dashboard.index'
 import { Route as AuthDashboardWebhooksRouteImport } from './routes/_auth.dashboard.webhooks'
@@ -24,7 +29,6 @@ import { Route as AuthDashboardAccountRouteImport } from './routes/_auth.dashboa
 const TermsLazyRouteImport = createFileRoute('/terms')()
 const PrivacyLazyRouteImport = createFileRoute('/privacy')()
 const PricingLazyRouteImport = createFileRoute('/pricing')()
-const DocsLazyRouteImport = createFileRoute('/docs')()
 
 const TermsLazyRoute = TermsLazyRouteImport.update({
   id: '/terms',
@@ -41,11 +45,6 @@ const PricingLazyRoute = PricingLazyRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/pricing.lazy').then((d) => d.Route))
-const DocsLazyRoute = DocsLazyRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/docs.lazy').then((d) => d.Route))
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -56,6 +55,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
@@ -64,6 +68,26 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsQuickstartRoute = DocsQuickstartRouteImport.update({
+  id: '/quickstart',
+  path: '/quickstart',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsAuthenticationRoute = DocsAuthenticationRouteImport.update({
+  id: '/authentication',
+  path: '/authentication',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsApiGlobalRoute = DocsApiGlobalRouteImport.update({
+  id: '/api-global',
+  path: '/api-global',
+  getParentRoute: () => DocsRoute,
 } as any)
 const AuthDashboardRoute = AuthDashboardRouteImport.update({
   id: '/dashboard',
@@ -93,13 +117,17 @@ const AuthDashboardAccountRoute = AuthDashboardAccountRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/docs': typeof DocsLazyRoute
   '/pricing': typeof PricingLazyRoute
   '/privacy': typeof PrivacyLazyRoute
   '/terms': typeof TermsLazyRoute
   '/dashboard': typeof AuthDashboardRouteWithChildren
+  '/docs/api-global': typeof DocsApiGlobalRoute
+  '/docs/authentication': typeof DocsAuthenticationRoute
+  '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/': typeof DocsIndexRoute
   '/dashboard/account': typeof AuthDashboardAccountRoute
   '/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
   '/dashboard/webhooks': typeof AuthDashboardWebhooksRoute
@@ -109,10 +137,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/docs': typeof DocsLazyRoute
   '/pricing': typeof PricingLazyRoute
   '/privacy': typeof PrivacyLazyRoute
   '/terms': typeof TermsLazyRoute
+  '/docs/api-global': typeof DocsApiGlobalRoute
+  '/docs/authentication': typeof DocsAuthenticationRoute
+  '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs': typeof DocsIndexRoute
   '/dashboard/account': typeof AuthDashboardAccountRoute
   '/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
   '/dashboard/webhooks': typeof AuthDashboardWebhooksRoute
@@ -122,13 +153,17 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
+  '/docs': typeof DocsRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/docs': typeof DocsLazyRoute
   '/pricing': typeof PricingLazyRoute
   '/privacy': typeof PrivacyLazyRoute
   '/terms': typeof TermsLazyRoute
   '/_auth/dashboard': typeof AuthDashboardRouteWithChildren
+  '/docs/api-global': typeof DocsApiGlobalRoute
+  '/docs/authentication': typeof DocsAuthenticationRoute
+  '/docs/quickstart': typeof DocsQuickstartRoute
+  '/docs/': typeof DocsIndexRoute
   '/_auth/dashboard/account': typeof AuthDashboardAccountRoute
   '/_auth/dashboard/api-keys': typeof AuthDashboardApiKeysRoute
   '/_auth/dashboard/webhooks': typeof AuthDashboardWebhooksRoute
@@ -138,13 +173,17 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs'
     | '/login'
     | '/register'
-    | '/docs'
     | '/pricing'
     | '/privacy'
     | '/terms'
     | '/dashboard'
+    | '/docs/api-global'
+    | '/docs/authentication'
+    | '/docs/quickstart'
+    | '/docs/'
     | '/dashboard/account'
     | '/dashboard/api-keys'
     | '/dashboard/webhooks'
@@ -154,10 +193,13 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
-    | '/docs'
     | '/pricing'
     | '/privacy'
     | '/terms'
+    | '/docs/api-global'
+    | '/docs/authentication'
+    | '/docs/quickstart'
+    | '/docs'
     | '/dashboard/account'
     | '/dashboard/api-keys'
     | '/dashboard/webhooks'
@@ -166,13 +208,17 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_auth'
+    | '/docs'
     | '/login'
     | '/register'
-    | '/docs'
     | '/pricing'
     | '/privacy'
     | '/terms'
     | '/_auth/dashboard'
+    | '/docs/api-global'
+    | '/docs/authentication'
+    | '/docs/quickstart'
+    | '/docs/'
     | '/_auth/dashboard/account'
     | '/_auth/dashboard/api-keys'
     | '/_auth/dashboard/webhooks'
@@ -182,9 +228,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
+  DocsRoute: typeof DocsRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
-  DocsLazyRoute: typeof DocsLazyRoute
   PricingLazyRoute: typeof PricingLazyRoute
   PrivacyLazyRoute: typeof PrivacyLazyRoute
   TermsLazyRoute: typeof TermsLazyRoute
@@ -213,13 +259,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingLazyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsLazyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -232,6 +271,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
@@ -247,6 +293,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/quickstart': {
+      id: '/docs/quickstart'
+      path: '/quickstart'
+      fullPath: '/docs/quickstart'
+      preLoaderRoute: typeof DocsQuickstartRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/authentication': {
+      id: '/docs/authentication'
+      path: '/authentication'
+      fullPath: '/docs/authentication'
+      preLoaderRoute: typeof DocsAuthenticationRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/api-global': {
+      id: '/docs/api-global'
+      path: '/api-global'
+      fullPath: '/docs/api-global'
+      preLoaderRoute: typeof DocsApiGlobalRouteImport
+      parentRoute: typeof DocsRoute
     }
     '/_auth/dashboard': {
       id: '/_auth/dashboard'
@@ -314,12 +388,28 @@ const AuthRouteChildren: AuthRouteChildren = {
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
+interface DocsRouteChildren {
+  DocsApiGlobalRoute: typeof DocsApiGlobalRoute
+  DocsAuthenticationRoute: typeof DocsAuthenticationRoute
+  DocsQuickstartRoute: typeof DocsQuickstartRoute
+  DocsIndexRoute: typeof DocsIndexRoute
+}
+
+const DocsRouteChildren: DocsRouteChildren = {
+  DocsApiGlobalRoute: DocsApiGlobalRoute,
+  DocsAuthenticationRoute: DocsAuthenticationRoute,
+  DocsQuickstartRoute: DocsQuickstartRoute,
+  DocsIndexRoute: DocsIndexRoute,
+}
+
+const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
+  DocsRoute: DocsRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
-  DocsLazyRoute: DocsLazyRoute,
   PricingLazyRoute: PricingLazyRoute,
   PrivacyLazyRoute: PrivacyLazyRoute,
   TermsLazyRoute: TermsLazyRoute,

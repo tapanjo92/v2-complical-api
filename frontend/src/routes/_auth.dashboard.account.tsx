@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,13 +21,14 @@ export const Route = createFileRoute('/_auth/dashboard/account')({
 
 function AccountSettings() {
   const { user } = useAuthStore()
+  const queryClient = useQueryClient()
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
   
-  // Email notification preferences
+  // Email notification preferences - initialize with defaults
   const [emailPreferences, setEmailPreferences] = useState({
     enabled: true,
     thresholds: {
@@ -41,6 +42,54 @@ function AccountSettings() {
     },
     customEmail: user?.email || '',
   })
+  
+  // Track if email needs verification
+  const [previousEmail, setPreviousEmail] = useState(user?.email || '')
+  const [emailVerified, setEmailVerified] = useState(true)
+  
+  // Load saved email preferences
+  const { data: savedPreferences, isLoading: loadingPreferences, refetch: refetchPreferences } = useQuery({
+    queryKey: ['email-preferences', user?.email],
+    queryFn: async () => {
+      const response = await api.auth.getEmailPreferences()
+      return response.data
+    },
+    enabled: !!user,
+    staleTime: 30 * 1000, // Cache for 30 seconds only
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnMount: true, // Always refetch on mount
+  })
+  
+  // Force refresh on mount if coming from email verification
+  useEffect(() => {
+    // Check if we're coming back from email verification
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('verified') === 'true' || document.referrer.includes('verify-email')) {
+      refetchPreferences()
+    }
+  }, [refetchPreferences])
+
+  // Update state when saved preferences are loaded
+  useEffect(() => {
+    if (savedPreferences && !loadingPreferences) {
+      console.log('Loading saved preferences:', savedPreferences)
+      setEmailPreferences({
+        enabled: savedPreferences.enabled ?? true,
+        thresholds: savedPreferences.thresholds || {
+          '25': true,
+          '50': true,
+          '75': true,
+          '80': false,
+          '90': true,
+          '95': false,
+          '100': true,
+        },
+        customEmail: savedPreferences.customEmail || user?.email || '',
+      })
+      setPreviousEmail(savedPreferences.customEmail || user?.email || '')
+      setEmailVerified(savedPreferences.emailVerified !== false)
+    }
+  }, [savedPreferences, loadingPreferences, user?.email])
 
   // Update password mutation
   const updatePasswordMutation = useMutation({
@@ -73,6 +122,9 @@ function AccountSettings() {
       return api.auth.updateEmailPreferences(prefs)
     },
     onSuccess: () => {
+      // Invalidate cache to ensure fresh data on next load
+      queryClient.invalidateQueries({ queryKey: ['email-preferences', user?.email] })
+      
       toast({
         title: 'Email preferences saved',
         description: 'Your notification settings have been updated.',
@@ -123,7 +175,7 @@ function AccountSettings() {
     })
   }
 
-  const handleEmailPreferencesSave = () => {
+  const handleEmailPreferencesSave = async () => {
     // Validate email
     if (!emailPreferences.customEmail || !emailPreferences.customEmail.includes('@')) {
       toast({
@@ -145,7 +197,24 @@ function AccountSettings() {
       return
     }
 
-    updateEmailPrefsMutation.mutate(emailPreferences)
+    // Check if email has changed and needs verification
+    const emailChanged = emailPreferences.customEmail !== previousEmail && 
+                        emailPreferences.customEmail !== user?.email
+    
+    try {
+      await updateEmailPrefsMutation.mutateAsync(emailPreferences)
+      
+      if (emailChanged) {
+        setPreviousEmail(emailPreferences.customEmail)
+        setEmailVerified(false)
+        toast({
+          title: 'Verification email sent',
+          description: `A verification link has been sent to ${emailPreferences.customEmail}. Please check your email.`,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to save preferences:', error)
+    }
   }
 
   return (
@@ -242,18 +311,32 @@ function AccountSettings() {
           {/* Notification Email */}
           <div className="space-y-2">
             <Label htmlFor="notificationEmail">Notification Email</Label>
-            <Input
-              id="notificationEmail"
-              type="email"
-              placeholder="your-email@example.com"
-              value={emailPreferences.customEmail}
-              onChange={(e) => 
-                setEmailPreferences({ ...emailPreferences, customEmail: e.target.value })
-              }
-              disabled={!emailPreferences.enabled}
-            />
+            <div className="relative">
+              <Input
+                id="notificationEmail"
+                type="email"
+                placeholder="your-email@example.com"
+                value={emailPreferences.customEmail}
+                onChange={(e) => 
+                  setEmailPreferences({ ...emailPreferences, customEmail: e.target.value })
+                }
+                disabled={!emailPreferences.enabled}
+              />
+              {emailPreferences.customEmail !== user?.email && (
+                <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-sm ${
+                  emailVerified ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  {emailVerified ? '✓ Verified' : 'Verification pending'}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               We'll send usage alerts to this email address
+              {emailPreferences.customEmail !== user?.email && (
+                <span className="block text-amber-600 mt-1">
+                  Note: You'll need to verify this email address before receiving notifications
+                </span>
+              )}
             </p>
           </div>
 

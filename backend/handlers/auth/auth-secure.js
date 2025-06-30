@@ -477,7 +477,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // Handle email preferences update
+    // Handle email preferences
     if (path.endsWith('/email-preferences')) {
       // Get token from Authorization header
       const authHeader = event.headers.Authorization || event.headers.authorization || '';
@@ -518,6 +518,74 @@ exports.handler = async (event) => {
           }),
         };
       }
+      
+      // Handle GET request - fetch saved preferences
+      if (event.httpMethod === 'GET') {
+        const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+        const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
+        
+        const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+        
+        try {
+          const result = await dynamodb.send(new GetCommand({
+            TableName: API_KEYS_TABLE,
+            Key: { id: `USER#${userEmail}` },
+          }));
+          
+          if (result.Item?.emailPreferences) {
+            // Convert stored format back to frontend format
+            const storedPrefs = result.Item.emailPreferences;
+            const thresholds = {};
+            
+            // Convert array of threshold strings to object
+            if (storedPrefs.thresholds && Array.isArray(storedPrefs.thresholds)) {
+              ['25', '50', '75', '80', '90', '95', '100'].forEach(level => {
+                thresholds[level] = storedPrefs.thresholds.includes(`usage.threshold.${level}`);
+              });
+            }
+            
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                enabled: storedPrefs.enabled || false,
+                thresholds,
+                customEmail: result.Item.notificationEmail || userEmail,
+                emailVerified: result.Item.emailVerified !== false, // Default to true for account email
+              }),
+            };
+          }
+          
+          // Return defaults if no preferences saved
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              enabled: true,
+              thresholds: {
+                '25': true,
+                '50': true,
+                '75': true,
+                '80': false,
+                '90': true,
+                '95': false,
+                '100': true,
+              },
+              customEmail: userEmail,
+            }),
+          };
+        } catch (error) {
+          console.error('Failed to fetch email preferences:', error);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({
+              error: 'Internal server error',
+              message: 'Failed to fetch email preferences',
+            }),
+          };
+        }
+      }
 
       // Parse request body
       const body = JSON.parse(event.body || '{}');
@@ -538,15 +606,82 @@ exports.handler = async (event) => {
       // Store preferences in DynamoDB (using API keys table for now)
       // In production, you might want a dedicated user preferences table
       const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-      const { DynamoDBDocumentClient, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+      const { DynamoDBDocumentClient, UpdateCommand, PutCommand } = require('@aws-sdk/lib-dynamodb');
       
       const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-      const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
 
       // Convert thresholds object to array of enabled thresholds
       const enabledThresholds = Object.entries(thresholds || {})
         .filter(([_, enabled]) => enabled)
         .map(([threshold, _]) => `usage.threshold.${threshold}`);
+
+      // Check if email needs verification
+      const emailChanged = customEmail && customEmail !== userEmail;
+      let emailVerified = !emailChanged; // If email didn't change, it's already verified
+      
+      // If email changed, send verification email
+      if (emailChanged) {
+        const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+        const ses = new SESClient({ region: 'ap-south-1' });
+        
+        // Generate verification token
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+        
+        // Send verification email
+        const emailCommand = new SendEmailCommand({
+          Source: 'noreply@get-comp.dev.tatacommunications.link',
+          Destination: {
+            ToAddresses: [customEmail],
+          },
+          Message: {
+            Subject: {
+              Data: 'Verify your email for CompliCal notifications',
+            },
+            Body: {
+              Html: {
+                Data: `
+                  <h2>Verify your email address</h2>
+                  <p>Hello,</p>
+                  <p>You've requested to receive CompliCal API usage notifications at this email address.</p>
+                  <p>Please click the link below to verify your email:</p>
+                  <a href="https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(customEmail)}" 
+                     style="display: inline-block; padding: 10px 20px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 5px;">
+                    Verify Email Address
+                  </a>
+                  <p>This link will expire in 24 hours.</p>
+                  <p>If you didn't request this, please ignore this email.</p>
+                  <br/>
+                  <p>Best regards,<br/>The CompliCal Team</p>
+                `,
+              },
+              Text: {
+                Data: `Verify your email address\n\nYou've requested to receive CompliCal API usage notifications at this email address.\n\nPlease visit this link to verify your email:\nhttps://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(customEmail)}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nThe CompliCal Team`,
+              },
+            },
+          },
+        });
+        
+        try {
+          await ses.send(emailCommand);
+          emailVerified = false;
+        } catch (sesError) {
+          console.error('Failed to send verification email:', sesError);
+          // Continue saving preferences even if email fails
+        }
+        
+        // Store verification token
+        await dynamodb.send(new PutCommand({
+          TableName: API_KEYS_TABLE,
+          Item: {
+            id: `VERIFY#${verificationToken}`,
+            userEmail: userEmail,
+            targetEmail: customEmail,
+            expiresAt: verificationExpiry,
+            createdAt: new Date().toISOString(),
+          },
+        }));
+      }
 
       // Store user email preferences
       await dynamodb.send(new UpdateCommand({
@@ -554,13 +689,14 @@ exports.handler = async (event) => {
         Key: {
           id: `USER#${userEmail}`,
         },
-        UpdateExpression: 'SET emailPreferences = :prefs, notificationEmail = :email',
+        UpdateExpression: 'SET emailPreferences = :prefs, notificationEmail = :email, emailVerified = :verified',
         ExpressionAttributeValues: {
           ':prefs': {
             enabled: enabled || false,
             thresholds: enabledThresholds,
           },
           ':email': customEmail || userEmail,
+          ':verified': emailVerified,
         },
       }));
 

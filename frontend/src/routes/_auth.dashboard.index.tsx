@@ -14,11 +14,9 @@ function DashboardOverview() {
   
   // Use the custom hook for usage data
   const { 
-    data: usageData, 
     refetch, 
     isRefetching, 
     dataUpdatedAt,
-    isLoading,
     activeKeys,
     totalUsage,
     usageLimit,

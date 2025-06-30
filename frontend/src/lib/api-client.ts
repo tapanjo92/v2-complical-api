@@ -98,11 +98,17 @@ export const api = {
     updatePassword: (data: { currentPassword: string; newPassword: string }) =>
       apiClient.post('/v1/auth/change-password', data),
     
+    getEmailPreferences: () =>
+      apiClient.get('/v1/auth/email-preferences'),
+    
     updateEmailPreferences: (data: { 
       enabled: boolean; 
       thresholds: Record<string, boolean>; 
-      customEmail: string 
+      customEmail: string;
     }) => apiClient.post('/v1/auth/email-preferences', data),
+    
+    verifyEmail: (params: { token: string; email: string }) =>
+      apiClient.get('/v1/auth/verify-email', { params }),
   },
   
   // API Keys

@@ -203,8 +203,14 @@ export class ApiStack extends cdk.Stack {
       resources: [props.userPool.userPoolArn],
     }));
 
-    // Grant auth function permission to update user preferences
-    props.apiKeysTable.grantWriteData(authFunction);
+    // Grant auth function permission to read and update user preferences
+    props.apiKeysTable.grantReadWriteData(authFunction);
+    
+    // Grant SES permissions to auth function for sending verification emails
+    authFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ses:SendEmail'],
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+    }));
 
     apiKeysFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: ['cognito-idp:AdminGetUser'],
@@ -303,7 +309,28 @@ export class ApiStack extends cdk.Stack {
     auth.addResource('logout').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     auth.addResource('refresh').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     auth.addResource('change-password').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
-    auth.addResource('email-preferences').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+    const emailPrefsResource = auth.addResource('email-preferences');
+    emailPrefsResource.addMethod('GET', new apigateway.LambdaIntegration(authFunction));
+    emailPrefsResource.addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+    
+    // Email verification endpoint (separate Lambda for better isolation)
+    const verifyEmailFunction = new lambda.Function(this, 'VerifyEmailFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'auth/verify-email.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers')),
+      environment: {
+        API_KEYS_TABLE: props.apiKeysTable.tableName,
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+      },
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      tracing: lambda.Tracing.ACTIVE,
+    });
+    
+    // Grant permissions to verify email function
+    props.apiKeysTable.grantReadWriteData(verifyEmailFunction);
+    
+    auth.addResource('verify-email').addMethod('GET', new apigateway.LambdaIntegration(verifyEmailFunction));
     
     const apiKeysResource = auth.addResource('api-keys');
     apiKeysResource.addMethod('GET', new apigateway.LambdaIntegration(apiKeysFunction));
