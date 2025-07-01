@@ -112,18 +112,21 @@ export class ApiStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE,
     });
 
-    // Lambda function for API key authorizer
+    // Lambda function for API key authorizer with enhanced synchronous usage tracking
     const apiKeyAuthorizerFunction = new lambda.Function(this, 'ApiKeyAuthorizerFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'handlers/auth/api-key-authorizer.handler',
+      handler: 'handlers/auth/api-key-authorizer-enhanced.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         TABLE_NAME: props.apiKeysTable.tableName,
+        API_USAGE_TABLE: props.apiUsageTable.tableName,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        ENVIRONMENT: props.environment,
       },
       timeout: cdk.Duration.seconds(5),
       memorySize: 128,
       tracing: lambda.Tracing.ACTIVE,
+      description: 'Enhanced authorizer with synchronous usage tracking to fix missing API call counts',
     });
 
     // Lambda function for processing usage logs
@@ -177,6 +180,7 @@ export class ApiStack extends cdk.Stack {
     props.deadlinesTable.grantReadData(simplifiedDeadlinesFunction);
     props.apiKeysTable.grantReadWriteData(apiKeysFunction);
     props.apiKeysTable.grantReadWriteData(apiKeyAuthorizerFunction); // Need write for usage tracking
+    props.apiUsageTable.grantWriteData(apiKeyAuthorizerFunction); // Enhanced authorizer writes usage directly
     props.apiKeysTable.grantWriteData(processUsageLogsFunction);
     props.apiUsageTable.grantWriteData(processUsageLogsFunction);
     props.apiKeysTable.grantReadData(usageFunction);
@@ -189,6 +193,17 @@ export class ApiStack extends cdk.Stack {
     props.sessionsTable.grantReadData(apiKeysFunction); // Validate sessions
     props.sessionsTable.grantReadData(webhooksFunction); // Validate sessions
     props.sessionsTable.grantReadData(usageFunction); // Validate sessions
+
+    // Grant CloudWatch metrics permissions to enhanced authorizer for usage tracking monitoring
+    apiKeyAuthorizerFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['cloudwatch:PutMetricData'],
+      resources: ['*'],
+      conditions: {
+        StringEquals: {
+          'cloudwatch:namespace': 'CompliCal/API'
+        }
+      }
+    }));
 
     // Grant SES permissions to webhook processor for email notifications
     processWebhooksFunction.addToRolePolicy(new iam.PolicyStatement({
@@ -279,29 +294,12 @@ export class ApiStack extends cdk.Stack {
     const healthCheckFunction = new lambda.Function(this, 'HealthCheckFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handlers/health.handler',
-      code: lambda.Code.fromInline(`
-        exports.handler = async (event) => {
-          return {
-            statusCode: 200,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Content-Type-Options': 'nosniff',
-              'X-Frame-Options': 'DENY',
-              'X-XSS-Protection': '1; mode=block',
-              'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-              'Referrer-Policy': 'strict-origin-when-cross-origin'
-            },
-            body: JSON.stringify({
-              status: 'healthy',
-              service: 'CompliCal API',
-              timestamp: new Date().toISOString()
-            })
-          };
-        };
-      `),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
+      environment: {
+        ENVIRONMENT: props.environment,
+      },
       timeout: cdk.Duration.seconds(3),
       memorySize: 128,
-      // NO environment variables
       // NO IAM permissions beyond basic Lambda execution
       description: 'Isolated health check endpoint with no data access',
     });
@@ -378,6 +376,15 @@ export class ApiStack extends cdk.Stack {
     // Simplified deadlines endpoint (Calendarific-style)
     const deadlines = v1.addResource('deadlines');
     deadlines.addMethod('GET', new apigateway.LambdaIntegration(simplifiedDeadlinesFunction), {
+      apiKeyRequired: true,
+      authorizer: apiKeyAuthorizer,
+    });
+    
+    // Ultra-simple endpoint: /v1/deadlines/{country}/{year}/{month}
+    const deadlinesCountry = deadlines.addResource('{country}');
+    const deadlinesYear = deadlinesCountry.addResource('{year}');
+    const deadlinesMonth = deadlinesYear.addResource('{month}');
+    deadlinesMonth.addMethod('GET', new apigateway.LambdaIntegration(simplifiedDeadlinesFunction), {
       apiKeyRequired: true,
       authorizer: apiKeyAuthorizer,
     });

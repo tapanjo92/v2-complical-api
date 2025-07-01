@@ -69,8 +69,24 @@ exports.handler = async (event) => {
   const headers = warning ? { ...baseHeaders, 'X-Warning': warning } : baseHeaders;
 
   try {
+    // Check if this is the ultra-simple endpoint with path parameters
+    let queryParams = { ...(event.queryStringParameters || {}) };
+    
+    if (event.pathParameters) {
+      // Override with path parameters if they exist
+      if (event.pathParameters.country) {
+        queryParams.country = event.pathParameters.country;
+      }
+      if (event.pathParameters.year) {
+        queryParams.year = event.pathParameters.year;
+      }
+      if (event.pathParameters.month) {
+        queryParams.month = event.pathParameters.month;
+      }
+    }
+    
     // Parse query parameters
-    const query = SimplifiedQuerySchema.parse(event.queryStringParameters || {});
+    const query = SimplifiedQuerySchema.parse(queryParams);
     
     // Handle multiple countries
     let countries = [];

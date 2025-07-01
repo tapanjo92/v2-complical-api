@@ -60,7 +60,64 @@ export class FrontendStack extends cdk.Stack {
     // Grant OAI read permissions to the bucket
     frontendBucket.grantRead(oai);
 
-    // CloudFront distribution
+    // Create or import custom response headers policy with comprehensive security headers
+    // For now, we'll use the policy ID created manually
+    // TODO: In future, create the policy programmatically or use a lookup
+    const responseHeadersPolicyId = props.environment === 'test' 
+      ? '7981a3c2-7013-4992-bc1f-f3f730fbea12' // Created manually for test environment
+      : undefined; // Will need to create for other environments
+    
+    // If we don't have a policy ID, create the policy
+    const responseHeadersPolicy = responseHeadersPolicyId 
+      ? cloudfront.ResponseHeadersPolicy.fromResponseHeadersPolicyId(this, 'SecurityHeadersPolicy', responseHeadersPolicyId)
+      : new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeadersPolicy', {
+          responseHeadersPolicyName: `complical-security-headers-${props.environment}`,
+          comment: 'Security headers for CompliCal frontend',
+          securityHeadersBehavior: {
+            contentTypeOptions: {
+              override: true,
+            },
+            frameOptions: {
+              frameOption: cloudfront.HeadersFrameOption.DENY,
+              override: true,
+            },
+            referrerPolicy: {
+              referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+              override: true,
+            },
+            strictTransportSecurity: {
+              accessControlMaxAge: cdk.Duration.seconds(63072000), // 2 years
+              includeSubdomains: true,
+              preload: true,
+              override: true,
+            },
+            xssProtection: {
+              protection: true,
+              modeBlock: true,
+              override: true,
+            },
+            contentSecurityPolicy: {
+              contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com; frame-ancestors 'none';",
+              override: true,
+            },
+          },
+          customHeadersBehavior: {
+            customHeaders: [
+              {
+                header: 'Permissions-Policy',
+                value: 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+                override: true,
+              },
+              {
+                header: 'X-Permitted-Cross-Domain-Policies',
+                value: 'none',
+                override: true,
+              },
+            ],
+          },
+        });
+
+    // CloudFront distribution with security headers
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessIdentity(frontendBucket, {
@@ -69,6 +126,8 @@ export class FrontendStack extends cdk.Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        // Use our custom security headers policy
+        responseHeadersPolicy: responseHeadersPolicy,
       },
       defaultRootObject: 'index.html',
       errorResponses: [
