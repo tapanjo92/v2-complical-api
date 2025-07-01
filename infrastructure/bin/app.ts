@@ -7,6 +7,7 @@ import { ApiStack } from '../lib/api-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 import { WafStack } from '../lib/waf-stack';
 import { MonitoringStack } from '../lib/monitoring-stack';
+import { KinesisAnalyticsStack } from '../lib/kinesis-analytics-stack';
 import { applyTags } from '../lib/tagging';
 
 const app = new cdk.App();
@@ -30,6 +31,19 @@ const authStack = new AuthStack(app, `CompliCal-Auth-${environment}`, {
   description: 'CompliCal Cognito authentication',
 });
 
+// Deploy Kinesis Analytics stack (optional - controlled by environment variable)
+let kinesisStack: KinesisAnalyticsStack | undefined;
+if (process.env.ENABLE_KINESIS_ANALYTICS === 'true') {
+  kinesisStack = new KinesisAnalyticsStack(app, `CompliCal-Kinesis-${environment}`, {
+    environment,
+    env,
+    apiKeysTable: dynamoStack.apiKeysTable,
+    apiUsageTable: dynamoStack.apiUsageTable,
+    description: 'CompliCal real-time analytics with Kinesis Data Streams',
+  });
+  kinesisStack.addDependency(dynamoStack);
+}
+
 // Deploy API stack with dependencies
 const apiStack = new ApiStack(app, `CompliCal-API-${environment}`, {
   environment,
@@ -41,11 +55,16 @@ const apiStack = new ApiStack(app, `CompliCal-API-${environment}`, {
   sessionsTable: dynamoStack.sessionsTable,
   userPool: authStack.userPool,
   userPoolClient: authStack.userPoolClient,
+  kinesisStream: kinesisStack?.usageStream,
+  analyticsTable: kinesisStack?.analyticsTable,
   description: 'CompliCal API Gateway and Lambda functions',
 });
 
 apiStack.addDependency(dynamoStack);
 apiStack.addDependency(authStack);
+if (kinesisStack) {
+  apiStack.addDependency(kinesisStack);
+}
 
 // Deploy Frontend stack
 const frontendStack = new FrontendStack(app, `CompliCal-Frontend-${environment}`, {

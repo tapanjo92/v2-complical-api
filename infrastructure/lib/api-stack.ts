@@ -3,6 +3,7 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as kinesis from 'aws-cdk-lib/aws-kinesis';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as logsDestinations from 'aws-cdk-lib/aws-logs-destinations';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
@@ -21,6 +22,8 @@ export interface ApiStackProps extends cdk.StackProps {
   sessionsTable: dynamodb.Table;
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
+  kinesisStream?: kinesis.Stream;
+  analyticsTable?: dynamodb.Table;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -112,21 +115,22 @@ export class ApiStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE,
     });
 
-    // Lambda function for API key authorizer with enhanced synchronous usage tracking
+    // Lambda function for API key authorizer with Kinesis streaming
     const apiKeyAuthorizerFunction = new lambda.Function(this, 'ApiKeyAuthorizerFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'handlers/auth/api-key-authorizer-enhanced.handler',
+      handler: 'handlers/auth/api-key-authorizer-kinesis.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         TABLE_NAME: props.apiKeysTable.tableName,
         API_USAGE_TABLE: props.apiUsageTable.tableName,
+        KINESIS_STREAM: `complical-usage-stream-${props.environment}`,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         ENVIRONMENT: props.environment,
       },
       timeout: cdk.Duration.seconds(5),
       memorySize: 128,
       tracing: lambda.Tracing.ACTIVE,
-      description: 'Enhanced authorizer with synchronous usage tracking to fix missing API call counts',
+      description: 'Kinesis-enabled authorizer for real-time analytics',
     });
 
     // Lambda function for processing usage logs
@@ -203,6 +207,12 @@ export class ApiStack extends cdk.Stack {
           'cloudwatch:namespace': 'CompliCal/API'
         }
       }
+    }));
+
+    // Grant Kinesis permissions to authorizer
+    apiKeyAuthorizerFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['kinesis:PutRecord', 'kinesis:PutRecords'],
+      resources: [`arn:aws:kinesis:${this.region}:${this.account}:stream/complical-usage-stream-${props.environment}`],
     }));
 
     // Grant SES permissions to webhook processor for email notifications
