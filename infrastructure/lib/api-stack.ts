@@ -127,10 +127,10 @@ export class ApiStack extends cdk.Stack {
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         ENVIRONMENT: props.environment,
       },
-      timeout: cdk.Duration.seconds(5),
-      memorySize: 128,
+      timeout: cdk.Duration.seconds(3), // Faster timeout for production
+      memorySize: 512, // More memory = faster execution
       tracing: lambda.Tracing.ACTIVE,
-      description: 'Kinesis-enabled authorizer for real-time analytics',
+      description: 'Kinesis-enabled authorizer for real-time analytics with zero caching',
     });
 
     // Lambda function for processing usage logs
@@ -369,12 +369,12 @@ export class ApiStack extends cdk.Stack {
     webhookIdResource.addMethod('PUT', new apigateway.LambdaIntegration(webhooksFunction));
     webhookIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(webhooksFunction));
 
-    // Custom authorizer
+    // Custom authorizer - NO CACHING for accurate real-time usage tracking
     const apiKeyAuthorizer = new apigateway.RequestAuthorizer(this, 'ApiKeyAuthorizer', {
       authorizerName: `complical-api-key-authorizer-${props.environment}`,
       handler: apiKeyAuthorizerFunction,
       identitySources: [apigateway.IdentitySource.header('x-api-key')],
-      resultsCacheTtl: cdk.Duration.minutes(5),
+      resultsCacheTtl: cdk.Duration.seconds(0), // ZERO caching - every request must be counted
     });
 
     // Cognito authorizer (commented out as not currently used)

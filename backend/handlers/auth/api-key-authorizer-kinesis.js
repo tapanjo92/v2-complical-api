@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, QueryCommand, UpdateCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
 const { KinesisClient, PutRecordCommand } = require('@aws-sdk/client-kinesis');
 const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
 const crypto = require('crypto');
@@ -81,7 +81,7 @@ exports.handler = async (event) => {
   const startTime = Date.now();
   const requestId = generateRequestId();
   
-  console.log(`Kinesis Authorizer invoked: ${requestId}`);
+  console.log(`Kinesis Authorizer invoked: ${requestId}, AWS RequestId: ${event.requestContext?.requestId}`);
   console.log(`KINESIS_STREAM env var: "${KINESIS_STREAM}"`);
   console.log(`Environment: ${ENVIRONMENT}`);
   
@@ -142,14 +142,12 @@ exports.handler = async (event) => {
     }
 
     const keyData = result.Items[0];
-    console.log(`Found API key for user: ${keyData.userEmail}`);
+    console.log(`Found API key: id=${keyData.id}, name=${keyData.name}, user=${keyData.userEmail}, currentCount=${keyData.usageCount}`);
     
-    // Get all user's keys for total usage calculation
-    const userKeysQuery = new QueryCommand({
+    // PRODUCTION GRADE: Get all user's keys with consistent read for accurate billing
+    const userKeysScan = new ScanCommand({
       TableName: API_KEYS_TABLE,
-      IndexName: 'userEmail-createdAt-index',
-      KeyConditionExpression: 'userEmail = :email',
-      FilterExpression: '#status = :active',
+      FilterExpression: 'userEmail = :email AND #status = :active',
       ExpressionAttributeNames: {
         '#status': 'status',
       },
@@ -157,9 +155,10 @@ exports.handler = async (event) => {
         ':email': keyData.userEmail,
         ':active': 'active',
       },
+      ConsistentRead: true, // CRITICAL for billing accuracy
     });
     
-    const userKeysResult = await dynamodb.send(userKeysQuery);
+    const userKeysResult = await dynamodb.send(userKeysScan);
     const userKeys = userKeysResult.Items || [];
     
     // Check rolling window reset
@@ -249,20 +248,26 @@ exports.handler = async (event) => {
       await sendToKinesis(eventData);
     }
     
-    // Update usage count in DynamoDB (still do this for redundancy)
-    dynamodb.send(new UpdateCommand({
-      TableName: API_KEYS_TABLE,
-      Key: { id: keyData.id },
-      UpdateExpression: 'SET usageCount = usageCount + :inc, lastUsed = :timestamp',
-      ExpressionAttributeValues: {
-        ':inc': 1,
-        ':timestamp': now.toISOString(),
-      },
-      ConditionExpression: 'attribute_exists(id)',
-    })).catch(err => {
-      console.error('Failed to update usage count:', err);
-      // Don't fail the request
-    });
+    // Update usage count in DynamoDB - MUST be synchronous for accurate counting
+    console.log(`BEFORE UPDATE: Updating key id=${keyData.id}, name=${keyData.name}`);
+    try {
+      const updateResult = await dynamodb.send(new UpdateCommand({
+        TableName: API_KEYS_TABLE,
+        Key: { id: keyData.id },
+        UpdateExpression: 'SET usageCount = usageCount + :inc, lastUsed = :timestamp',
+        ExpressionAttributeValues: {
+          ':inc': 1,
+          ':timestamp': now.toISOString(),
+        },
+        ConditionExpression: 'attribute_exists(id)',
+        ReturnValues: 'ALL_NEW',
+      }));
+      console.log(`AFTER UPDATE: key=${keyData.name}, newCount=${updateResult.Attributes.usageCount}`);
+    } catch (err) {
+      console.error('CRITICAL: Failed to update usage count:', err);
+      // This is critical - usage tracking must work
+      throw new Error('Failed to track API usage');
+    }
     
     // Check for threshold alerts
     const usagePercentage = Math.round((newTotalAfterThisRequest / userUsageLimit) * 100);

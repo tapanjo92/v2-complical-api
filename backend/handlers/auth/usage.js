@@ -1,5 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, QueryCommand, GetCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
 const { validateAuth, parseCookies } = require('../../utils/session-validator');
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -74,33 +74,21 @@ exports.handler = async (event) => {
       };
     }
 
-    // Get all user's API keys with strongly consistent read
-    const keysQuery = new QueryCommand({
+    // PRODUCTION GRADE: Use Scan instead of GSI for accurate billing data
+    // GSIs have eventual consistency which is UNACCEPTABLE for billing
+    const scanCommand = new ScanCommand({
       TableName: API_KEYS_TABLE,
-      IndexName: 'userEmail-createdAt-index',
-      KeyConditionExpression: 'userEmail = :email',
+      FilterExpression: 'userEmail = :email',
       ExpressionAttributeValues: {
         ':email': userEmail,
       },
-      ConsistentRead: false, // GSI doesn't support consistent reads, but we'll handle it differently
+      ConsistentRead: true, // CRITICAL: Always use consistent reads for billing data
     });
 
-    const keysResult = await dynamodb.send(keysQuery);
-    const apiKeys = keysResult.Items || [];
-
-    // For accurate counts, fetch each key with GetItem (strongly consistent)
-    const keyDetailsPromises = apiKeys.map(key => 
-      dynamodb.send(new GetCommand({
-        TableName: API_KEYS_TABLE,
-        Key: { id: key.id },
-        ConsistentRead: true,
-      }))
-    );
+    const scanResult = await dynamodb.send(scanCommand);
+    const freshApiKeys = scanResult.Items || [];
     
-    const keyDetailsResults = await Promise.all(keyDetailsPromises);
-    const freshApiKeys = keyDetailsResults
-      .map(result => result.Item)
-      .filter(item => item !== undefined);
+    console.log(`Found ${freshApiKeys.length} keys for user ${userEmail} with consistent read`);
 
     // Calculate current period (rolling 30-day window)
     const now = new Date();
