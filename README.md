@@ -2,6 +2,24 @@
 
 Complete rewrite of CompliCal with modern architecture, enhanced security, and enterprise-grade monitoring.
 
+## 🚀 Quick Deploy
+
+```bash
+# Deploy everything including usage metering
+./deploy.sh prod ap-south-1
+
+# Verify deployment
+./verify-deployment.sh prod
+
+# Test API usage tracking
+./test-api-usage.sh prod YOUR_API_KEY
+```
+
+## 📊 API Usage Metering
+
+Production-grade usage tracking that only bills for successful (2xx) API calls.
+See [API_USAGE_METERING.md](API_USAGE_METERING.md) for architecture details.
+
 ## Project Structure
 
 ```

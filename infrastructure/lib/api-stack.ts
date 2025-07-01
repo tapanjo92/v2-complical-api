@@ -12,6 +12,7 @@ import * as sns from 'aws-cdk-lib/aws-sns';
 import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
 import * as path from 'path';
+import { ProductionUsageMeteringConstruct } from './production-usage-metering-construct';
 
 export interface ApiStackProps extends cdk.StackProps {
   environment: string;
@@ -118,7 +119,7 @@ export class ApiStack extends cdk.Stack {
     // Lambda function for API key authorizer with Kinesis streaming
     const apiKeyAuthorizerFunction = new lambda.Function(this, 'ApiKeyAuthorizerFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'handlers/auth/api-key-authorizer-kinesis.handler',
+      handler: 'handlers/auth/api-key-authorizer-production.handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../backend')),
       environment: {
         TABLE_NAME: props.apiKeysTable.tableName,
@@ -126,6 +127,7 @@ export class ApiStack extends cdk.Stack {
         KINESIS_STREAM: `complical-usage-stream-${props.environment}`,
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         ENVIRONMENT: props.environment,
+        DEBUG: 'false', // Production: no debug logs
       },
       timeout: cdk.Duration.seconds(3), // Faster timeout for production
       memorySize: 512, // More memory = faster execution
@@ -285,8 +287,11 @@ export class ApiStack extends cdk.Stack {
             apiKeyId: '$context.authorizer.apiKeyId',
             userEmail: '$context.authorizer.userEmail',
             keyName: '$context.authorizer.keyName',
-            principalId: '$context.authorizer.principalId'
-          }
+            principalId: '$context.authorizer.principalId',
+            shouldCountUsage: '$context.authorizer.shouldCountUsage',
+            requestId: '$context.authorizer.requestId'
+          },
+          timestamp: '$context.requestTime'
         })),
       },
       defaultCorsPreflightOptions: {
@@ -474,18 +479,20 @@ export class ApiStack extends cdk.Stack {
       ],
     }));
 
-    // CloudWatch Logs subscription for usage tracking
-    const apiLogGroup = logs.LogGroup.fromLogGroupName(
-      this,
-      'ImportedApiLogGroup',
-      `/aws/apigateway/complical-${props.environment}`
-    );
-
-    new logs.SubscriptionFilter(this, 'UsageLogSubscription', {
-      logGroup: apiLogGroup,
-      filterPattern: logs.FilterPattern.literal('[...]'),
-      destination: new logsDestinations.LambdaDestination(processUsageLogsFunction),
+    // Create production usage metering
+    const usageMetering = new ProductionUsageMeteringConstruct(this, 'UsageMetering', {
+      environment: props.environment,
+      apiKeysTable: props.apiKeysTable,
+      apiLogGroup: logGroup,
+      apiKeyAuthorizerFunction: apiKeyAuthorizerFunction,
+      apiKeysManagementFunction: apiKeysFunction,
     });
+
+    // new logs.SubscriptionFilter(this, 'UsageLogSubscription', {
+    //   logGroup: apiLogGroup,
+    //   filterPattern: logs.FilterPattern.literal('[...]'),
+    //   destination: new logsDestinations.LambdaDestination(processUsageLogsFunction),
+    // });
 
     // SNS Topic for webhook triggers
     const webhookTopic = new sns.Topic(this, 'WebhookTriggerTopic', {

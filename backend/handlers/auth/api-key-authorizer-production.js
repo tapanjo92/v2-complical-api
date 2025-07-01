@@ -12,9 +12,9 @@ const API_KEYS_TABLE = process.env.TABLE_NAME;
 const KINESIS_STREAM = process.env.KINESIS_STREAM;
 const WEBHOOK_TOPIC_ARN = process.env.WEBHOOK_TOPIC_ARN;
 const ENVIRONMENT = process.env.ENVIRONMENT || 'test';
+const DEBUG = process.env.DEBUG === 'true';
 
 // PRODUCTION OPTIMIZATION: In-memory cache for API keys (TTL: 30 seconds)
-// This reduces DynamoDB reads while maintaining fresh data
 const apiKeyCache = new Map();
 const CACHE_TTL = 30000; // 30 seconds
 
@@ -52,7 +52,8 @@ async function sendToKinesis(eventData) {
     await kinesis.send(new PutRecordCommand(record));
     return true;
   } catch (error) {
-    // Don't throw - this is non-critical for API operation
+    // Non-critical for API operation
+    if (DEBUG) console.error('Kinesis send error:', error);
     return false;
   }
 }
@@ -88,11 +89,9 @@ exports.handler = async (event) => {
   const startTime = Date.now();
   const requestId = generateRequestId();
   
-  // Only log in development/debug mode
-  const DEBUG = process.env.DEBUG === 'true' || ENVIRONMENT === 'dev';
-  if (DEBUG) {
-    console.log(`Kinesis Authorizer invoked: ${requestId}, AWS RequestId: ${event.requestContext?.requestId}`);
-  }
+  // CRITICAL: Store whether this request should count toward usage
+  // This context will be passed to the API Gateway integration
+  let shouldCountUsage = false;
   
   try {
     // Extract API key from header
@@ -100,17 +99,15 @@ exports.handler = async (event) => {
     
     if (!apiKey) {
       // Track failed auth attempts
-      if (KINESIS_STREAM) {
-        sendToKinesis({
-          eventType: 'API_AUTH_FAILED',
-          requestId,
-          timestamp: new Date().toISOString(),
-          reason: 'missing_api_key',
-          methodArn: event.methodArn,
-          sourceIp: event.requestContext?.identity?.sourceIp,
-          userAgent: event.requestContext?.identity?.userAgent,
-        });
-      }
+      sendToKinesis({
+        eventType: 'API_AUTH_FAILED',
+        requestId,
+        timestamp: new Date().toISOString(),
+        reason: 'missing_api_key',
+        methodArn: event.methodArn,
+        sourceIp: event.requestContext?.identity?.sourceIp,
+        userAgent: event.requestContext?.identity?.userAgent,
+      });
       throw new Error('Unauthorized');
     }
 
@@ -123,11 +120,9 @@ exports.handler = async (event) => {
     let keyData;
     
     if (cached && cached.expires > Date.now()) {
-      if (DEBUG) console.log(`Cache hit for key hash: ${hashedKey.substring(0, 8)}...`);
       keyData = cached.data;
+      if (DEBUG) console.log(`Cache hit for key: ${keyData.name}`);
     } else {
-      if (DEBUG) console.log(`Cache miss for key hash: ${hashedKey.substring(0, 8)}..., querying DynamoDB`);
-      
       // PRODUCTION STRATEGY: Try GSI first for performance, fallback to scan
       try {
         // First attempt: Use GSI for speed (most cases will work)
@@ -157,7 +152,6 @@ exports.handler = async (event) => {
           });
         } else {
           // Fallback: Use scan with consistent read if GSI returns nothing
-          if (DEBUG) console.log('GSI returned no results, falling back to consistent scan');
           const scanCommand = new ScanCommand({
             TableName: API_KEYS_TABLE,
             FilterExpression: 'hashedKey = :hash AND #status = :active',
@@ -189,26 +183,19 @@ exports.handler = async (event) => {
       }
     }
     
-    const result = { Items: keyData ? [keyData] : [] };
-
-    if (!result.Items || result.Items.length === 0) {
+    if (!keyData) {
       // Track invalid key attempts
-      if (KINESIS_STREAM) {
-        sendToKinesis({
-          eventType: 'API_AUTH_FAILED',
-          requestId,
-          timestamp: new Date().toISOString(),
-          reason: 'invalid_api_key',
-          methodArn: event.methodArn,
-          sourceIp: event.requestContext?.identity?.sourceIp,
-          userAgent: event.requestContext?.identity?.userAgent,
-        });
-      }
+      sendToKinesis({
+        eventType: 'API_AUTH_FAILED',
+        requestId,
+        timestamp: new Date().toISOString(),
+        reason: 'invalid_api_key',
+        methodArn: event.methodArn,
+        sourceIp: event.requestContext?.identity?.sourceIp,
+        userAgent: event.requestContext?.identity?.userAgent,
+      });
       throw new Error('Unauthorized');
     }
-
-    keyData = result.Items[0];
-    if (DEBUG) console.log(`Found API key: id=${keyData.id}, name=${keyData.name}, user=${keyData.userEmail}, currentCount=${keyData.usageCount}`);
     
     // PRODUCTION GRADE: Get all user's keys with consistent read for accurate billing
     const userKeysScan = new ScanCommand({
@@ -235,8 +222,6 @@ exports.handler = async (event) => {
     if (needsReset) {
       const newResetDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       const newResetDateISO = newResetDate.toISOString();
-      
-      if (DEBUG) console.log(`Resetting usage for user ${keyData.userEmail}`);
       
       // Reset all user keys
       const resetPromises = userKeys.map(key => 
@@ -268,133 +253,22 @@ exports.handler = async (event) => {
     
     if (totalUserUsage >= userUsageLimit) {
       // Track rate limit hits
-      if (KINESIS_STREAM) {
-        sendToKinesis({
-          eventType: 'API_RATE_LIMITED',
-          requestId,
-          timestamp: new Date().toISOString(),
-          userEmail: keyData.userEmail,
-          apiKeyId: keyData.id,
-          currentUsage: totalUserUsage,
-          limit: userUsageLimit,
-          methodArn: event.methodArn,
-        });
-      }
-      if (DEBUG) console.log(`User ${keyData.userEmail} exceeded limit: ${totalUserUsage}/${userUsageLimit}`);
-      throw new Error('Usage limit exceeded');
-    }
-    
-    const newTotalAfterThisRequest = totalUserUsage + 1;
-    
-    // Send successful auth event to Kinesis
-    if (KINESIS_STREAM) {
-      if (DEBUG) console.log(`Sending to Kinesis stream: ${KINESIS_STREAM}`);
-      const eventData = {
-        eventType: 'API_CALL',
+      sendToKinesis({
+        eventType: 'API_RATE_LIMITED',
         requestId,
         timestamp: new Date().toISOString(),
         userEmail: keyData.userEmail,
-        companyName: keyData.companyName,
         apiKeyId: keyData.id,
-        apiKeyName: keyData.name,
+        currentUsage: totalUserUsage,
+        limit: userUsageLimit,
         methodArn: event.methodArn,
-        method: event.requestContext?.httpMethod,
-        path: event.requestContext?.path,
-        stage: event.requestContext?.stage,
-        sourceIp: event.requestContext?.identity?.sourceIp,
-        userAgent: event.requestContext?.identity?.userAgent,
-        region: event.requestContext?.identity?.region,
-        currentUsage: newTotalAfterThisRequest,
-        usageLimit: userUsageLimit,
-        remainingCalls: Math.max(0, userUsageLimit - newTotalAfterThisRequest),
-        resetDate: keyData.usageResetDate,
-        latencyMs: Date.now() - startTime,
-      };
-      
-      await sendToKinesis(eventData);
-    }
-    
-    // Update usage count in DynamoDB - MUST be synchronous for accurate counting
-    if (DEBUG) console.log(`BEFORE UPDATE: Updating key id=${keyData.id}, name=${keyData.name}, currentCount=${keyData.usageCount}, requestId=${requestId}, awsRequestId=${event.requestContext?.requestId}`);
-    try {
-      const updateResult = await dynamodb.send(new UpdateCommand({
-        TableName: API_KEYS_TABLE,
-        Key: { id: keyData.id },
-        UpdateExpression: 'SET usageCount = usageCount + :inc, lastUsed = :timestamp, lastRequestId = :requestId',
-        ExpressionAttributeValues: {
-          ':inc': 1,
-          ':timestamp': now.toISOString(),
-          ':requestId': event.requestContext?.requestId || requestId,
-        },
-        ConditionExpression: 'attribute_exists(id)',
-        ReturnValues: 'ALL_NEW',
-      }));
-      
-      // CRITICAL: Update cache with fresh data
-      const updatedKeyData = updateResult.Attributes;
-      apiKeyCache.set(cacheKey, {
-        data: updatedKeyData,
-        expires: Date.now() + CACHE_TTL
       });
-      
-      if (DEBUG) console.log(`AFTER UPDATE: key=${keyData.name}, oldCount=${keyData.usageCount}, newCount=${updateResult.Attributes.usageCount}, increment=${updateResult.Attributes.usageCount - (keyData.usageCount || 0)}`);
-    } catch (err) {
-      console.error('CRITICAL: Failed to update usage count:', err);
-      // This is critical - usage tracking must work
-      throw new Error('Failed to track API usage');
+      throw new Error('Usage limit exceeded');
     }
     
-    // Check for threshold alerts
-    const usagePercentage = Math.round((newTotalAfterThisRequest / userUsageLimit) * 100);
-    const thresholds = [50, 80, 90, 95, 100];
-    
-    for (const threshold of thresholds) {
-      if (usagePercentage >= threshold && totalUserUsage < (userUsageLimit * threshold / 100)) {
-        if (DEBUG) console.log(`User ${keyData.userEmail} crossed ${threshold}% threshold`);
-        
-        // Send to Kinesis for analytics
-        if (KINESIS_STREAM) {
-          sendToKinesis({
-            eventType: 'USAGE_THRESHOLD',
-            requestId,
-            timestamp: new Date().toISOString(),
-            userEmail: keyData.userEmail,
-            threshold,
-            usage: newTotalAfterThisRequest,
-            limit: userUsageLimit,
-            percentage: usagePercentage,
-          });
-        }
-        
-        // Send SNS notification
-        if (WEBHOOK_TOPIC_ARN) {
-          sns.send(new PublishCommand({
-            TopicArn: WEBHOOK_TOPIC_ARN,
-            Message: JSON.stringify({
-              userEmail: keyData.userEmail,
-              eventType: `usage.threshold.${threshold}`,
-              data: {
-                usage: newTotalAfterThisRequest,
-                limit: userUsageLimit,
-                percentage: usagePercentage,
-                remainingCalls: Math.max(0, userUsageLimit - newTotalAfterThisRequest),
-                resetDate: keyData.usageResetDate,
-              },
-            }),
-            MessageAttributes: {
-              eventType: {
-                DataType: 'String',
-                StringValue: `usage.threshold.${threshold}`,
-              },
-            },
-          })).catch(err => {
-            // Silent fail - webhooks are non-critical
-          });
-        }
-        
-        break;
-      }
-    }
+    // CRITICAL: Mark that we should count this request
+    // The actual counting happens AFTER we know the response status
+    shouldCountUsage = true;
     
     // Generate wildcard resource
     const arnParts = event.methodArn.split('/');
@@ -409,30 +283,57 @@ exports.handler = async (event) => {
         apiKeyId: keyData.id,
         userEmail: keyData.userEmail,
         keyName: keyData.name,
-        usageCount: String(newTotalAfterThisRequest),
+        // Pass shouldCountUsage flag to integration
+        shouldCountUsage: String(shouldCountUsage),
+        requestId,
+        // Pass current usage for response headers
+        currentUsage: String(totalUserUsage),
         usageLimit: String(userUsageLimit),
-        remainingCalls: String(Math.max(0, userUsageLimit - newTotalAfterThisRequest)),
+        remainingCalls: String(Math.max(0, userUsageLimit - totalUserUsage)),
         usageResetDate: keyData.usageResetDate || '',
-        requestId, // Include for tracing
       }
     );
 
-    if (DEBUG) console.log(`Authorization completed in ${Date.now() - startTime}ms`);
     return policy;
 
   } catch (error) {
+    // Log only in debug mode
     if (DEBUG) console.error('Authorization failed:', error.message);
+    
     // Final catch-all for any errors
-    if (KINESIS_STREAM) {
-      sendToKinesis({
-        eventType: 'API_AUTH_ERROR',
-        requestId,
-        timestamp: new Date().toISOString(),
-        error: error.message,
-        methodArn: event.methodArn,
-        latencyMs: Date.now() - startTime,
-      });
-    }
+    sendToKinesis({
+      eventType: 'API_AUTH_ERROR',
+      requestId,
+      timestamp: new Date().toISOString(),
+      error: error.message,
+      methodArn: event.methodArn,
+      latencyMs: Date.now() - startTime,
+    });
+    
     throw new Error('Unauthorized');
   }
+};
+
+// Export cache clear function for testing and manual invalidation
+exports.clearCache = (keyHash) => {
+  if (keyHash) {
+    apiKeyCache.delete(`key:${keyHash}`);
+  } else {
+    apiKeyCache.clear();
+  }
+};
+
+// Handler for SNS cache invalidation messages
+exports.cacheInvalidationHandler = async (event) => {
+  for (const record of event.Records) {
+    try {
+      const message = JSON.parse(record.Sns.Message);
+      if (message.action === 'invalidate_key' && message.hashedKey) {
+        exports.clearCache(message.hashedKey);
+      }
+    } catch (error) {
+      if (DEBUG) console.error('Cache invalidation error:', error);
+    }
+  }
+  return { statusCode: 200 };
 };

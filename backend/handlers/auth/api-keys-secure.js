@@ -355,6 +355,24 @@ exports.handler = async (event) => {
           revokedAt: new Date().toISOString(),
         },
       }));
+      
+      // CRITICAL: Invalidate cache immediately (non-blocking)
+      // Send cache invalidation message via SNS to all authorizer instances
+      if (process.env.CACHE_INVALIDATION_TOPIC_ARN) {
+        const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
+        const sns = new SNSClient({});
+        // Fire and forget - don't await
+        sns.send(new PublishCommand({
+          TopicArn: process.env.CACHE_INVALIDATION_TOPIC_ARN,
+          Message: JSON.stringify({
+            action: 'invalidate_key',
+            hashedKey: keyData.Item.hashedKey,
+          }),
+        })).catch(err => {
+          // Log but don't fail the deletion
+          console.error('Cache invalidation failed (non-critical):', err);
+        });
+      }
 
       // Log API key revocation for audit
       console.log(`API key revoked for user ${userEmail}: ${keyId}`);
