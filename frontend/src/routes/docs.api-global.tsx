@@ -209,7 +209,7 @@ function GlobalEndpoint() {
             <p className="text-sm text-gray-600">Get Australian deadlines for March 2025:</p>
             <CodeBlock 
               language="bash"
-              code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU&year=2025&month=3" \\
+              code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU&year=2025&month=3" \\
   -H "x-api-key: YOUR_API_KEY"`}
             />
           </div>
@@ -220,7 +220,7 @@ function GlobalEndpoint() {
             <p className="text-sm text-gray-600">Get all deadlines for Q1 2025:</p>
             <CodeBlock 
               language="bash"
-              code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?from_date=2025-01-01&to_date=2025-03-31" \\
+              code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?from_date=2025-01-01&to_date=2025-03-31" \\
   -H "x-api-key: YOUR_API_KEY"`}
             />
           </div>
@@ -231,7 +231,7 @@ function GlobalEndpoint() {
             <p className="text-sm text-gray-600">Get deadlines for both Australia and New Zealand:</p>
             <CodeBlock 
               language="bash"
-              code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?countries=AU,NZ&category=Tax Returns" \\
+              code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?countries=AU,NZ&category=Tax Returns" \\
   -H "x-api-key: YOUR_API_KEY"`}
             />
           </div>
@@ -242,7 +242,7 @@ function GlobalEndpoint() {
             <p className="text-sm text-gray-600">Get page 3 of results (25 per page):</p>
             <CodeBlock 
               language="bash"
-              code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU&limit=25&offset=50" \\
+              code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU&limit=25&offset=50" \\
   -H "x-api-key: YOUR_API_KEY"`}
             />
           </div>

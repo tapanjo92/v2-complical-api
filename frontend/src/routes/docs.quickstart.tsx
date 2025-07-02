@@ -69,7 +69,7 @@ function QuickStart() {
                 <TabsContent value="curl">
                   <CodeBlock 
                     language="bash"
-                    code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU&year=2025" \\
+                    code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU&year=2025" \\
   -H "x-api-key: YOUR_API_KEY"`}
                   />
                 </TabsContent>
@@ -79,7 +79,7 @@ function QuickStart() {
                     language="javascript"
                     code={`const axios = require('axios');
 
-const response = await axios.get('https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines', {
+const response = await axios.get('https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines', {
   params: {
     country: 'AU',
     year: 2025
@@ -99,7 +99,7 @@ console.log(response.data);`}
                     code={`import requests
 
 response = requests.get(
-    'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines',
+    'https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines',
     params={'country': 'AU', 'year': 2025},
     headers={'x-api-key': 'YOUR_API_KEY'}
 )
@@ -114,7 +114,7 @@ print(response.json())`}
                     code={`<?php
 $ch = curl_init();
 
-curl_setopt($ch, CURLOPT_URL, 'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU&year=2025');
+curl_setopt($ch, CURLOPT_URL, 'https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU&year=2025');
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'x-api-key: YOUR_API_KEY'
@@ -213,7 +213,7 @@ print_r($data);`}
             <h3 className="text-lg font-semibold mb-3">Get upcoming deadlines for next month</h3>
             <CodeBlock 
               language="bash"
-              code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU&from_date=2025-02-01&to_date=2025-02-28" \\
+              code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU&from_date=2025-02-01&to_date=2025-02-28" \\
   -H "x-api-key: YOUR_API_KEY"`}
             />
           </Card>
@@ -222,7 +222,7 @@ print_r($data);`}
             <h3 className="text-lg font-semibold mb-3">Filter by specific deadline type</h3>
             <CodeBlock 
               language="bash"
-              code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU&type=BAS_QUARTERLY" \\
+              code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU&type=BAS_QUARTERLY" \\
   -H "x-api-key: YOUR_API_KEY"`}
             />
           </Card>
@@ -231,7 +231,7 @@ print_r($data);`}
             <h3 className="text-lg font-semibold mb-3">Get deadlines for multiple countries</h3>
             <CodeBlock 
               language="bash"
-              code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?countries=AU,NZ&year=2025&month=3" \\
+              code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?countries=AU,NZ&year=2025&month=3" \\
   -H "x-api-key: YOUR_API_KEY"`}
             />
           </Card>

@@ -27,8 +27,14 @@ export ENABLE_KINESIS_ANALYTICS=$ENABLE_KINESIS
 cd ../../../infrastructure
 
 # Install dependencies
-echo "📦 Installing dependencies..."
+echo "📦 Installing infrastructure dependencies..."
 npm install
+
+# Install backend Lambda dependencies
+echo "📦 Installing backend Lambda dependencies..."
+cd ../backend/handlers
+npm install
+cd ../../infrastructure
 
 # Build TypeScript
 echo "🔨 Building CDK app..."
@@ -37,6 +43,15 @@ npm run build
 # Bootstrap CDK (if needed)
 echo "🏗️ Bootstrapping CDK..."
 npx cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)/$REGION || true
+
+# Clean up any existing dashboards to avoid conflicts
+echo "🧹 Cleaning up existing dashboards..."
+aws cloudwatch delete-dashboards \
+  --dashboard-names \
+  "complical-api-usage-$ENVIRONMENT" \
+  "complical-usage-analytics-$ENVIRONMENT" \
+  "complical-monitoring-$ENVIRONMENT" \
+  --region $REGION 2>/dev/null || true
 
 # Deploy backend stacks in order
 echo "🚢 Deploying backend stacks..."

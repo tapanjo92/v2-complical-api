@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios'
 import { useAuthStore } from './auth-store'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod'
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

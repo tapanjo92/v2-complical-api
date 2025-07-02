@@ -41,7 +41,7 @@ export class MonitoringStack extends cdk.Stack {
 
     // Create dashboard
     this.dashboard = new cloudwatch.Dashboard(this, 'Dashboard', {
-      dashboardName: `complical-${props.environment}-dashboard`,
+      dashboardName: `complical-monitoring-${props.environment}`,
       defaultInterval: cdk.Duration.hours(3),
     });
 

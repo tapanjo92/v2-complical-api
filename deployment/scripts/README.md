@@ -96,37 +96,77 @@ cd deployment/scripts/ap-south-1
 
 ### For us-east-1:
 ```bash
+# 1. Deploy backend infrastructure
 cd deployment/scripts/us-east-1
-
-# 1. Deploy backend
 ./deploy-backend.sh prod true
 
-# 2. Deploy frontend
+# 2. Fix hardcoded URLs BEFORE building frontend
+cd ../post-deployment
+./fix-hardcoded-urls.sh prod us-east-1
+
+# 3. Deploy frontend
+cd ../us-east-1
 ./deploy-frontend.sh prod
 
-# 3. Load sample data
+# 4. Load initial data
 AWS_REGION=us-east-1 TABLE_NAME=complical-deadlines-prod node ../../../scripts/load-data.js
 
-# 4. Verify everything
+# 5. Verify deployment
 ./verify-deployment.sh prod
+
+# 6. Test API usage tracking (after creating an API key)
+cd ../post-deployment
+./test-api-usage.sh prod YOUR_API_KEY us-east-1
 ```
 
 ### For ap-south-1:
 ```bash
+# 1. Deploy backend infrastructure
 cd deployment/scripts/ap-south-1
-
-# 1. Deploy backend
 ./deploy-backend.sh prod true
 
-# 2. Deploy frontend
+# 2. Fix hardcoded URLs BEFORE building frontend
+cd ../post-deployment
+./fix-hardcoded-urls.sh prod ap-south-1
+
+# 3. Deploy frontend
+cd ../ap-south-1
 ./deploy-frontend.sh prod
 
-# 3. Load sample data
+# 4. Load initial data
 AWS_REGION=ap-south-1 TABLE_NAME=complical-deadlines-prod node ../../../scripts/load-data.js
 
-# 4. Verify everything
+# 5. Verify deployment
 ./verify-deployment.sh prod
+
+# 6. Test API usage tracking (after creating an API key)
+cd ../post-deployment
+./test-api-usage.sh prod YOUR_API_KEY ap-south-1
 ```
+
+### Common Post-Deployment Issues
+
+1. **Frontend shows wrong API URL or CSP errors**:
+   ```bash
+   cd deployment/scripts/post-deployment
+   ./update-frontend-csp.sh prod [region]
+   ```
+
+2. **Documentation shows old API URLs**:
+   ```bash
+   cd deployment/scripts/post-deployment
+   ./fix-hardcoded-urls.sh prod [region]
+   # Then rebuild and redeploy frontend
+   ```
+
+3. **Need to update .env.production manually**:
+   ```bash
+   cd frontend
+   echo "VITE_API_URL=https://YOUR-API-ID.execute-api.REGION.amazonaws.com/prod/" > .env.production
+   npm run build
+   cd ../deployment/scripts/[region]
+   ./deploy-frontend.sh prod
+   ```
 
 ## Script Features
 
@@ -175,7 +215,23 @@ AWS_REGION=ap-south-1 TABLE_NAME=complical-deadlines-prod node ../../../scripts/
 
 Located in `post-deployment/` directory:
 
-### Fix CSP Issues (`update-frontend-csp.sh`)
+### 1. Fix Hardcoded URLs (`fix-hardcoded-urls.sh`)
+
+**IMPORTANT**: Run this BEFORE building the frontend if you're deploying to a new region or environment.
+
+```bash
+cd deployment/scripts/post-deployment
+./fix-hardcoded-urls.sh prod us-east-1
+```
+
+This script:
+- Updates ALL hardcoded API URLs in the frontend source code
+- Fixes index.html preconnect links
+- Updates documentation examples
+- Updates vite.config.ts proxy settings
+- Shows count of files changed
+
+### 2. Update Frontend CSP (`update-frontend-csp.sh`)
 
 If you encounter Content Security Policy errors after deployment:
 
@@ -190,7 +246,7 @@ This script:
 - Invalidates CloudFront cache
 - No hardcoded values
 
-### Test API Usage (`test-api-usage.sh`)
+### 3. Test API Usage (`test-api-usage.sh`)
 
 Test that usage tracking is working correctly:
 

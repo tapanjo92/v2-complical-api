@@ -90,7 +90,7 @@ function AuthenticationGuide() {
         <TabsContent value="curl">
           <CodeBlock 
             language="bash"
-            code={`curl -X GET "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU" \\
+            code={`curl -X GET "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU" \\
   -H "x-api-key: YOUR_API_KEY"`}
           />
         </TabsContent>
@@ -104,7 +104,7 @@ function AuthenticationGuide() {
 const API_KEY = process.env.COMPLICAL_API_KEY;
 
 const client = axios.create({
-  baseURL: 'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test',
+  baseURL: 'https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod',
   headers: {
     'x-api-key': API_KEY
   }
@@ -125,7 +125,7 @@ import os
 
 # Store your API key securely
 API_KEY = os.environ.get('COMPLICAL_API_KEY')
-BASE_URL = 'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test'
+BASE_URL = 'https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod'
 
 # Create a session with authentication
 session = requests.Session()
@@ -152,7 +152,7 @@ func main() {
     
     client := &http.Client{}
     req, _ := http.NewRequest("GET", 
-        "https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU", 
+        "https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU", 
         nil)
     
     req.Header.Add("x-api-key", apiKey)
@@ -171,7 +171,7 @@ require 'uri'
 require 'json'
 
 api_key = ENV['COMPLICAL_API_KEY']
-uri = URI('https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/v1/deadlines?country=AU')
+uri = URI('https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/v1/deadlines?country=AU')
 
 http = Net::HTTP.new(uri.host, uri.port)
 http.use_ssl = true

@@ -36,7 +36,7 @@ export function ApiPlayground({
   const [loading, setLoading] = useState(false)
   const [selectedApiKey, setSelectedApiKey] = useState('')
 
-  const baseUrl = 'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test'
+  const baseUrl = 'https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod'
 
   const handleParamChange = (name: string, value: string) => {
     setParams(prev => ({ ...prev, [name]: value }))

@@ -50,7 +50,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test',
+        target: process.env.VITE_API_URL || 'https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
