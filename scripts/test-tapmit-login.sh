@@ -2,8 +2,8 @@
 
 # Test login for tapmit200@gmail.com
 
-API_URL="https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test"
-FRONTEND_URL="https://d1v4wmxs6wjlqf.cloudfront.net"
+API_URL="${API_URL:-https://api.getcomplical.com}"
+FRONTEND_URL="${FRONTEND_URL:-https://app.getcomplical.com}"
 
 echo "=============================================="
 echo "Testing Login for tapmit200@gmail.com"

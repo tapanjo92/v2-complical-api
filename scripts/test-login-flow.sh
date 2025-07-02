@@ -2,8 +2,10 @@
 
 # Test login flow to debug the issue
 
-API_URL="https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test"
-FRONTEND_URL="https://d1v4wmxs6wjlqf.cloudfront.net"
+# Configuration - set these as environment variables or pass as arguments
+API_URL=${1:-${API_URL:-"https://api.getcomplical.com"}}
+FRONTEND_URL=${2:-${FRONTEND_URL:-"https://app.getcomplical.com"}}
+REGION=${3:-${AWS_REGION:-"us-east-1"}}
 
 echo "=============================================="
 echo "Testing Login Flow - Debugging 401/404 Issue"

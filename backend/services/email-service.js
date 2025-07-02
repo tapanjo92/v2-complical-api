@@ -1,6 +1,6 @@
 const { SESClient, SendEmailCommand, SendTemplatedEmailCommand } = require('@aws-sdk/client-ses');
 
-const ses = new SESClient({ region: process.env.AWS_REGION || 'ap-south-1' });
+const ses = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 // Email templates for different threshold alerts
 const EMAIL_TEMPLATES = {
@@ -50,7 +50,7 @@ async function sendUsageAlertEmail(userEmail, eventType, usageData) {
   const textBody = generateTextEmail(eventType, usageData);
 
   const params = {
-    Source: process.env.SES_FROM_EMAIL || 'noreply@complical.ai',
+    Source: process.env.SES_FROM_EMAIL || 'noreply@getcomplical.com',
     Destination: {
       ToAddresses: [userEmail],
     },
@@ -175,7 +175,7 @@ function generateHtmlEmail(eventType, usageData, template) {
       </ul>
       
       <h3>Need help?</h3>
-      <p>Contact our support team at support@complical.ai or visit our documentation.</p>
+      <p>Contact our support team at support@getcomplical.com or visit our documentation.</p>
     </div>
     
     <div class="footer">
@@ -217,7 +217,7 @@ What happens when you reach your limit:
 - Service will resume at the next billing cycle
 - Consider upgrading for uninterrupted service
 
-Need help? Contact support@complical.ai
+Need help? Contact support@getcomplical.com
 
 © 2025 CompliCal. All rights reserved.
   `;

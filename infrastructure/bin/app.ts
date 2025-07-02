@@ -15,7 +15,7 @@ const app = new cdk.App();
 const environment = process.env.ENVIRONMENT || 'test';
 const env = {
   account: process.env.CDK_DEFAULT_ACCOUNT,
-  region: process.env.CDK_DEFAULT_REGION || 'ap-south-1',
+  region: process.env.CDK_DEFAULT_REGION || process.env.AWS_REGION || 'us-east-1',
 };
 
 // Deploy DynamoDB stack first

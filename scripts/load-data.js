@@ -2,7 +2,7 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, BatchWriteCommand } = require('@aws-sdk/lib-dynamodb');
 const { v4: uuidv4 } = require('uuid');
 
-const dynamoDbClient = new DynamoDBClient({ region: 'ap-south-1' });
+const dynamoDbClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
 const docClient = DynamoDBDocumentClient.from(dynamoDbClient);
 
 const TABLE_NAME = process.env.TABLE_NAME || 'complical-deadlines-test';

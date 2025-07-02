@@ -61,11 +61,8 @@ export class FrontendStack extends cdk.Stack {
     frontendBucket.grantRead(oai);
 
     // Create or import custom response headers policy with comprehensive security headers
-    // For now, we'll use the policy ID created manually
-    // TODO: In future, create the policy programmatically or use a lookup
-    const responseHeadersPolicyId = props.environment === 'test' 
-      ? '7981a3c2-7013-4992-bc1f-f3f730fbea12' // Created manually for test environment
-      : undefined; // Will need to create for other environments
+    // We'll always create a new policy to ensure CSP matches the deployed API
+    const responseHeadersPolicyId = undefined; // Always create new policy
     
     // If we don't have a policy ID, create the policy
     const responseHeadersPolicy = responseHeadersPolicyId 
@@ -97,7 +94,7 @@ export class FrontendStack extends cdk.Stack {
               override: true,
             },
             contentSecurityPolicy: {
-              contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com; frame-ancestors 'none';",
+              contentSecurityPolicy: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ${process.env.API_URL || 'https://*.execute-api.*.amazonaws.com'}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;`,
               override: true,
             },
           },
@@ -111,6 +108,21 @@ export class FrontendStack extends cdk.Stack {
               {
                 header: 'X-Permitted-Cross-Domain-Policies',
                 value: 'none',
+                override: true,
+              },
+              {
+                header: 'X-DNS-Prefetch-Control',
+                value: 'off',
+                override: true,
+              },
+              {
+                header: 'Expect-CT',
+                value: 'max-age=86400, enforce',
+                override: true,
+              },
+              {
+                header: 'Cache-Control',
+                value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
                 override: true,
               },
             ],
