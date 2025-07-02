@@ -77,7 +77,7 @@ const frontendStack = new FrontendStack(app, `CompliCal-Frontend-${environment}`
 const wafStack = new WafStack(app, `CompliCal-WAF-${environment}`, {
   environment,
   env,
-  apiArn: `arn:aws:apigateway:${env.region}::/restapis/${apiStack.api.restApiId}/stages/${apiStack.api.deploymentStage.stageName}`,
+  apiArn: cdk.Fn.importValue(`CompliCal-API-${environment}:ApiStageArn`),
   description: 'CompliCal WAF protection rules',
 });
 

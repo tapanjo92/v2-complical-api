@@ -48,20 +48,28 @@ function getAllowedOrigin(event) {
   return allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
 }
 
-async function getUsagePlanId() {
-  if (cachedUsagePlanId) {
-    return cachedUsagePlanId;
+const cachedUsagePlanIds = {};
+
+async function getUsagePlanId(plan = 'basic') {
+  if (cachedUsagePlanIds[plan]) {
+    return cachedUsagePlanIds[plan];
   }
 
   try {
+    const paramName = {
+      basic: process.env.BASIC_USAGE_PLAN_ID_PARAM,
+      professional: process.env.PROFESSIONAL_USAGE_PLAN_ID_PARAM,
+      enterprise: process.env.ENTERPRISE_USAGE_PLAN_ID_PARAM,
+    }[plan] || process.env.BASIC_USAGE_PLAN_ID_PARAM;
+
     const command = new GetParameterCommand({
-      Name: USAGE_PLAN_SSM_PARAMETER,
+      Name: paramName,
     });
     const response = await ssm.send(command);
-    cachedUsagePlanId = response.Parameter?.Value || null;
-    return cachedUsagePlanId;
+    cachedUsagePlanIds[plan] = response.Parameter?.Value || null;
+    return cachedUsagePlanIds[plan];
   } catch (error) {
-    console.error('Failed to get usage plan ID from SSM:', error);
+    console.error(`Failed to get ${plan} usage plan ID from SSM:`, error);
     return null;
   }
 }
@@ -71,6 +79,7 @@ const createApiKeySchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   expiresIn: z.number().min(1).max(365).optional().default(90), // Days until expiration
+  plan: z.enum(['basic', 'professional', 'enterprise']).optional().default('basic'),
 });
 
 exports.handler = async (event) => {
@@ -166,7 +175,7 @@ exports.handler = async (event) => {
     // POST /v1/auth/api-keys - Create new API key
     if (method === 'POST' && path.endsWith('/api-keys')) {
       const body = JSON.parse(event.body || '{}');
-      const { name, description, expiresIn } = createApiKeySchema.parse(body);
+      const { name, description, expiresIn, plan } = createApiKeySchema.parse(body);
 
       // Check if user has reached API key limit
       const existingKeysQuery = new QueryCommand({
@@ -210,6 +219,7 @@ exports.handler = async (event) => {
         tags: {
           userEmail,
           keyName: name,
+          plan: plan || 'basic',
         },
       });
 
@@ -219,8 +229,8 @@ exports.handler = async (event) => {
         throw new Error('Failed to create API key');
       }
 
-      // Associate with usage plan
-      const usagePlanId = await getUsagePlanId();
+      // Associate with the selected usage plan
+      const usagePlanId = await getUsagePlanId(plan || 'basic');
       if (usagePlanId) {
         try {
           const associateCommand = new CreateUsagePlanKeyCommand({
@@ -229,13 +239,13 @@ exports.handler = async (event) => {
             keyType: 'API_KEY',
           });
           await apigateway.send(associateCommand);
-          console.log(`Associated API key ${apiKeyResponse.id} with usage plan ${usagePlanId}`);
+          console.log(`Associated API key ${apiKeyResponse.id} with ${plan || 'basic'} usage plan ${usagePlanId}`);
         } catch (error) {
           // Log but don't fail if association fails
-          console.error('Failed to associate API key with usage plan:', error);
+          console.error(`Failed to associate API key with ${plan || 'basic'} usage plan:`, error);
         }
       } else {
-        console.warn('No usage plan ID available, API key created without usage plan association');
+        console.warn(`No ${plan || 'basic'} usage plan ID available, API key created without usage plan association`);
       }
 
       // Calculate expiration date
@@ -257,6 +267,7 @@ exports.handler = async (event) => {
         description,
         hashedKey, // Store hashed version
         keyPrefix, // Store prefix for identification
+        plan: plan || 'basic', // Store the usage plan
         createdAt: createdAt.toISOString(),
         expiresAt: expiresAt.toISOString(),
         ttl: ttlTimestamp, // DynamoDB TTL attribute

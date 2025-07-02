@@ -10,6 +10,8 @@ import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import { ProductionUsageMeteringConstruct } from './production-usage-metering-construct';
@@ -30,6 +32,9 @@ export interface ApiStackProps extends cdk.StackProps {
 export class ApiStack extends cdk.Stack {
   public readonly api: apigateway.RestApi;
   public readonly usagePlanId: string;
+  public readonly basicUsagePlanId: string;
+  public readonly professionalUsagePlanId: string;
+  public readonly enterpriseUsagePlanId: string;
   public readonly deadlinesFunction: lambda.Function;
   public readonly authFunction: lambda.Function;
   public readonly apiKeysFunction: lambda.Function;
@@ -478,12 +483,13 @@ export class ApiStack extends cdk.Stack {
       authorizer: apiKeyAuthorizer,
     });
 
-    // Usage plan
-    const usagePlan = this.api.addUsagePlan('UsagePlan', {
-      name: `complical-usage-plan-${props.environment}`,
-      description: 'Usage plan for CompliCal API',
+    // Create multiple usage plans for different tiers
+    // API Gateway applies throttle limits PER API KEY when keys are associated with the plan
+    const basicUsagePlan = this.api.addUsagePlan('BasicUsagePlan', {
+      name: `complical-basic-plan-${props.environment}`,
+      description: 'Basic usage plan - 10 req/sec per API key',
       throttle: {
-        rateLimit: 10,
+        rateLimit: 10,  // Per API key limit
         burstLimit: 20,
       },
       quota: {
@@ -492,11 +498,44 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    usagePlan.addApiStage({
-      stage: this.api.deploymentStage,
+    const professionalUsagePlan = this.api.addUsagePlan('ProfessionalUsagePlan', {
+      name: `complical-professional-plan-${props.environment}`,
+      description: 'Professional usage plan - 50 req/sec per API key',
+      throttle: {
+        rateLimit: 50,
+        burstLimit: 100,
+      },
+      quota: {
+        limit: 100000,
+        period: apigateway.Period.MONTH,
+      },
     });
 
-    this.usagePlanId = usagePlan.usagePlanId;
+    const enterpriseUsagePlan = this.api.addUsagePlan('EnterpriseUsagePlan', {
+      name: `complical-enterprise-plan-${props.environment}`,
+      description: 'Enterprise usage plan - 100 req/sec per API key',
+      throttle: {
+        rateLimit: 100,
+        burstLimit: 200,
+      },
+      quota: {
+        limit: 1000000,
+        period: apigateway.Period.MONTH,
+      },
+    });
+
+    // Add API stage to all usage plans
+    [basicUsagePlan, professionalUsagePlan, enterpriseUsagePlan].forEach(plan => {
+      plan.addApiStage({
+        stage: this.api.deploymentStage,
+      });
+    });
+
+    // Store all usage plan IDs
+    this.usagePlanId = basicUsagePlan.usagePlanId;
+    this.basicUsagePlanId = basicUsagePlan.usagePlanId;
+    this.professionalUsagePlanId = professionalUsagePlan.usagePlanId;
+    this.enterpriseUsagePlanId = enterpriseUsagePlan.usagePlanId;
     
     // Assign Lambda functions to public properties
     this.deadlinesFunction = deadlinesFunction;
@@ -505,19 +544,32 @@ export class ApiStack extends cdk.Stack {
     this.webhooksFunction = webhooksFunction;
     this.authorizerFunction = apiKeyAuthorizerFunction;
 
-    // Store usage plan ID in SSM for Lambda to access
-    new ssm.StringParameter(this, 'UsagePlanIdParameter', {
-      parameterName: `/complical/${props.environment}/usage-plan-id`,
-      stringValue: usagePlan.usagePlanId,
+    // Store all usage plan IDs in SSM for Lambda to access
+    new ssm.StringParameter(this, 'BasicUsagePlanIdParameter', {
+      parameterName: `/complical/${props.environment}/usage-plan-id/basic`,
+      stringValue: basicUsagePlan.usagePlanId,
+    });
+    
+    new ssm.StringParameter(this, 'ProfessionalUsagePlanIdParameter', {
+      parameterName: `/complical/${props.environment}/usage-plan-id/professional`,
+      stringValue: professionalUsagePlan.usagePlanId,
+    });
+    
+    new ssm.StringParameter(this, 'EnterpriseUsagePlanIdParameter', {
+      parameterName: `/complical/${props.environment}/usage-plan-id/enterprise`,
+      stringValue: enterpriseUsagePlan.usagePlanId,
     });
 
-    apiKeysFunction.addEnvironment('USAGE_PLAN_ID_PARAM', `/complical/${props.environment}/usage-plan-id`);
+    // Pass all plan IDs to Lambda
+    apiKeysFunction.addEnvironment('BASIC_USAGE_PLAN_ID_PARAM', `/complical/${props.environment}/usage-plan-id/basic`);
+    apiKeysFunction.addEnvironment('PROFESSIONAL_USAGE_PLAN_ID_PARAM', `/complical/${props.environment}/usage-plan-id/professional`);
+    apiKeysFunction.addEnvironment('ENTERPRISE_USAGE_PLAN_ID_PARAM', `/complical/${props.environment}/usage-plan-id/enterprise`);
     apiKeysFunction.addEnvironment('API_ID', this.api.restApiId);
     
     // Grant SSM permissions to API keys function
     apiKeysFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
-      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/complical/${props.environment}/usage-plan-id`],
+      resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/complical/${props.environment}/usage-plan-id/*`],
     }));
 
     // Grant API Gateway permissions to API keys function
@@ -552,16 +604,53 @@ export class ApiStack extends cdk.Stack {
     //   destination: new logsDestinations.LambdaDestination(processUsageLogsFunction),
     // });
 
+    // Create DLQ for failed webhook deliveries
+    const webhookDLQ = new sqs.Queue(this, 'WebhookDeadLetterQueue', {
+      queueName: `complical-webhook-dlq-${props.environment}`,
+      retentionPeriod: cdk.Duration.days(14), // Keep failed messages for 14 days
+      encryption: sqs.QueueEncryption.UNENCRYPTED, // SNS requires unencrypted or customer-managed KMS
+    });
+
+    // Create main webhook processing queue with retry logic
+    const webhookQueue = new sqs.Queue(this, 'WebhookQueue', {
+      queueName: `complical-webhook-queue-${props.environment}`,
+      visibilityTimeout: cdk.Duration.seconds(180), // 3x Lambda timeout
+      retentionPeriod: cdk.Duration.days(4),
+      deadLetterQueue: {
+        queue: webhookDLQ,
+        maxReceiveCount: 3, // Retry 3 times before sending to DLQ
+      },
+      encryption: sqs.QueueEncryption.UNENCRYPTED, // SNS requires unencrypted or customer-managed KMS
+    });
+
     // SNS Topic for webhook triggers
     const webhookTopic = new sns.Topic(this, 'WebhookTriggerTopic', {
       topicName: `complical-webhook-triggers-${props.environment}`,
       displayName: 'CompliCal Webhook Triggers',
     });
 
-    // Subscribe webhook processor to SNS topic
+    // Subscribe webhook queue to SNS topic (instead of direct Lambda)
     webhookTopic.addSubscription(
-      new snsSubscriptions.LambdaSubscription(processWebhooksFunction)
+      new snsSubscriptions.SqsSubscription(webhookQueue, {
+        rawMessageDelivery: true,
+      })
     );
+
+    // Configure Lambda to process from SQS with batching
+    const webhookEventSource = new lambdaEventSources.SqsEventSource(webhookQueue, {
+      batchSize: 10, // Process up to 10 webhooks at once
+      reportBatchItemFailures: true, // Allow partial batch failures
+    });
+    
+    processWebhooksFunction.addEventSource(webhookEventSource);
+
+    // Grant permissions
+    webhookQueue.grantConsumeMessages(processWebhooksFunction);
+    webhookDLQ.grantConsumeMessages(processWebhooksFunction); // For reprocessing from DLQ
+    
+    // Add environment variables for webhook processor
+    processWebhooksFunction.addEnvironment('WEBHOOK_QUEUE_URL', webhookQueue.queueUrl);
+    processWebhooksFunction.addEnvironment('WEBHOOK_DLQ_URL', webhookDLQ.queueUrl);
 
     // Grant authorizer permission to publish to SNS
     webhookTopic.grantPublish(apiKeyAuthorizerFunction);
@@ -581,8 +670,25 @@ export class ApiStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'UsagePlanId', {
-      value: usagePlan.usagePlanId,
-      description: 'API Usage Plan ID',
+      value: this.usagePlanId,
+      description: 'Basic API Usage Plan ID',
+    });
+    
+    new cdk.CfnOutput(this, 'ProfessionalUsagePlanId', {
+      value: this.professionalUsagePlanId,
+      description: 'Professional API Usage Plan ID',
+    });
+    
+    new cdk.CfnOutput(this, 'EnterpriseUsagePlanId', {
+      value: this.enterpriseUsagePlanId,
+      description: 'Enterprise API Usage Plan ID',
+    });
+    
+    // Export API stage ARN for WAF
+    new cdk.CfnOutput(this, 'ApiStageArn', {
+      value: `arn:aws:apigateway:${this.region}::/restapis/${this.api.restApiId}/stages/${this.api.deploymentStage.stageName}`,
+      description: 'API Gateway Stage ARN for WAF',
+      exportName: `${this.stackName}:ApiStageArn`,
     });
   }
 }

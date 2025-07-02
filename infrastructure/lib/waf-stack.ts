@@ -13,7 +13,7 @@ export class WafStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: WafStackProps) {
     super(scope, id, props);
 
-    // Create IP rate limiting rule
+    // Create IP rate limiting rule for all endpoints
     const rateLimitRule: wafv2.CfnWebACL.RuleProperty = {
       name: 'RateLimitRule',
       priority: 1,
@@ -38,10 +38,86 @@ export class WafStack extends cdk.Stack {
       },
     };
 
+    // Strict rate limiting for public auth endpoints (prevent credential stuffing)
+    const authEndpointRateLimit: wafv2.CfnWebACL.RuleProperty = {
+      name: 'AuthEndpointRateLimit',
+      priority: 2,
+      statement: {
+        rateBasedStatement: {
+          limit: 100, // Only 100 requests per 5 minutes per IP (across all endpoints)
+          aggregateKeyType: 'IP',
+          scopeDownStatement: {
+            byteMatchStatement: {
+              searchString: '/v1/auth/',
+              fieldToMatch: {
+                uriPath: {},
+              },
+              textTransformations: [{
+                priority: 0,
+                type: 'NONE',
+              }],
+              positionalConstraint: 'CONTAINS',
+            },
+          },
+        },
+      },
+      action: {
+        block: {
+          customResponse: {
+            responseCode: 429,
+            customResponseBodyKey: 'authRateLimitExceeded',
+          },
+        },
+      },
+      visibilityConfig: {
+        sampledRequestsEnabled: true,
+        cloudWatchMetricsEnabled: true,
+        metricName: 'AuthEndpointRateLimit',
+      },
+    };
+
+    // Health check endpoint rate limit (prevent abuse)
+    const healthCheckRateLimit: wafv2.CfnWebACL.RuleProperty = {
+      name: 'HealthCheckRateLimit',
+      priority: 3,
+      statement: {
+        rateBasedStatement: {
+          limit: 300, // 300 requests per 5 minutes per IP
+          aggregateKeyType: 'IP',
+          scopeDownStatement: {
+            byteMatchStatement: {
+              searchString: '/health',
+              fieldToMatch: {
+                uriPath: {},
+              },
+              textTransformations: [{
+                priority: 0,
+                type: 'NONE',
+              }],
+              positionalConstraint: 'EXACTLY',
+            },
+          },
+        },
+      },
+      action: {
+        block: {
+          customResponse: {
+            responseCode: 429,
+            customResponseBodyKey: 'healthRateLimitExceeded',
+          },
+        },
+      },
+      visibilityConfig: {
+        sampledRequestsEnabled: true,
+        cloudWatchMetricsEnabled: true,
+        metricName: 'HealthCheckRateLimit',
+      },
+    };
+
     // Geo-blocking rule (optional - can be customized)
     const geoBlockingRule: wafv2.CfnWebACL.RuleProperty = {
       name: 'GeoBlockingRule',
-      priority: 2,
+      priority: 4,
       statement: {
         notStatement: {
           statement: {
@@ -70,7 +146,7 @@ export class WafStack extends cdk.Stack {
     // SQL injection rule
     const sqlInjectionRule: wafv2.CfnWebACL.RuleProperty = {
       name: 'SQLInjectionRule',
-      priority: 3,
+      priority: 5,
       statement: {
         orStatement: {
           statements: [
@@ -125,7 +201,7 @@ export class WafStack extends cdk.Stack {
     // XSS (Cross-site scripting) rule
     const xssRule: wafv2.CfnWebACL.RuleProperty = {
       name: 'XSSRule',
-      priority: 4,
+      priority: 6,
       statement: {
         orStatement: {
           statements: [
@@ -180,7 +256,7 @@ export class WafStack extends cdk.Stack {
     // Size constraint rule
     const sizeConstraintRule: wafv2.CfnWebACL.RuleProperty = {
       name: 'SizeConstraintRule',
-      priority: 5,
+      priority: 7,
       statement: {
         orStatement: {
           statements: [
@@ -312,6 +388,20 @@ export class WafStack extends cdk.Stack {
           code: 'REQUEST_TOO_LARGE',
         }),
       },
+      authRateLimitExceeded: {
+        contentType: 'APPLICATION_JSON',
+        content: JSON.stringify({
+          error: 'Too many authentication attempts from your IP address. Please try again later.',
+          code: 'AUTH_RATE_LIMIT_EXCEEDED',
+        }),
+      },
+      healthRateLimitExceeded: {
+        contentType: 'APPLICATION_JSON',
+        content: JSON.stringify({
+          error: 'Too many health check requests from your IP address.',
+          code: 'HEALTH_RATE_LIMIT_EXCEEDED',
+        }),
+      },
     };
 
     // Create Web ACL
@@ -324,6 +414,8 @@ export class WafStack extends cdk.Stack {
       description: 'WAF rules for CompliCal API',
       rules: [
         rateLimitRule,
+        authEndpointRateLimit,
+        healthCheckRateLimit,
         geoBlockingRule,
         sqlInjectionRule,
         xssRule,

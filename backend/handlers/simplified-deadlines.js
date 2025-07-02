@@ -1,11 +1,13 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 const { z } = require('zod');
+const { addSecurityHeaders } = require('../utils/security-headers');
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
 const TABLE_NAME = process.env.TABLE_NAME || 'complical-deadlines-dev';
+const ENVIRONMENT = process.env.ENVIRONMENT || 'dev';
 
 // Simplified query parameters schema (Calendarific style)
 const SimplifiedQuerySchema = z.object({
@@ -36,26 +38,25 @@ const COUNTRY_MAPPING = {
 };
 
 exports.handler = async (event) => {
-  // Security check - ensure request came through API Gateway
-  if (!event.requestContext || !event.requestContext.apiId) {
-    return {
-      statusCode: 403,
+  // Helper function to create responses with security headers
+  const createResponse = (statusCode, body) => {
+    return addSecurityHeaders({
+      statusCode,
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
-    };
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    }, event, ENVIRONMENT);
+  };
+
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return createResponse(403, { error: 'Forbidden - Direct Lambda invocation not allowed' });
   }
   
   // Check authorizer context for authenticated endpoints
   if (!event.requestContext.authorizer?.userEmail) {
-    return {
-      statusCode: 401,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ error: 'Unauthorized' })
-    };
+    return createResponse(401, { error: 'Unauthorized' });
   }
   
   // Extract usage information from authorizer context

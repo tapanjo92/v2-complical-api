@@ -8,6 +8,9 @@ const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const WEBHOOKS_TABLE = process.env.WEBHOOKS_TABLE;
 const API_KEYS_TABLE = process.env.API_KEYS_TABLE;
 
+// For SQS batch processing
+const BATCH_ITEM_FAILURES = [];
+
 // Email notification thresholds (as requested by user)
 const EMAIL_NOTIFICATION_THRESHOLDS = ['usage.threshold.50', 'usage.threshold.75', 'usage.threshold.90'];
 
@@ -61,10 +64,47 @@ function calculateSignature(payload, secret) {
 exports.handler = async (event) => {
   console.log('Webhook processor invoked:', JSON.stringify(event));
 
-  // Event comes from SNS
-  const snsMessage = JSON.parse(event.Records[0].Sns.Message);
-  const { userEmail, eventType, data } = snsMessage;
+  // Handle both SNS (legacy) and SQS (new) events
+  const records = event.Records || [];
+  const batchItemFailures = [];
 
+  // Process each record in the batch
+  for (const record of records) {
+    try {
+      let message;
+      
+      // Parse message based on source
+      if (record.eventSource === 'aws:sqs') {
+        // SQS message
+        message = JSON.parse(record.body);
+      } else if (record.EventSource === 'aws:sns') {
+        // SNS message (legacy)
+        message = JSON.parse(record.Sns.Message);
+      } else {
+        throw new Error(`Unknown event source: ${record.eventSource || record.EventSource}`);
+      }
+
+      const { userEmail, eventType, data } = message;
+      await processWebhookEvent(userEmail, eventType, data);
+      
+    } catch (error) {
+      console.error(`Failed to process record ${record.messageId}:`, error);
+      // Add to batch failures for retry
+      if (record.messageId) {
+        batchItemFailures.push({
+          itemIdentifier: record.messageId
+        });
+      }
+    }
+  }
+
+  // Return batch item failures for SQS retry
+  return {
+    batchItemFailures
+  };
+};
+
+async function processWebhookEvent(userEmail, eventType, data) {
   try {
     // Get all active webhooks for this user that subscribe to this event
     const webhooksResult = await dynamodb.send(new QueryCommand({
@@ -150,25 +190,16 @@ exports.handler = async (event) => {
       }
     }
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: 'Webhooks processed',
-        results: results.map((r, i) => ({
-          webhookId: webhooks[i].webhookId,
-          success: r.status === 'fulfilled' && r.value.success,
-          error: r.reason?.message,
-        })),
-      }),
-    };
+    console.log('Webhook processing complete:', {
+      total: webhooks.length,
+      successful: results.filter(r => r.status === 'fulfilled' && r.value.success).length,
+      failed: results.filter(r => r.status === 'rejected' || !r.value?.success).length,
+    });
   } catch (error) {
     console.error('Webhook processor error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to process webhooks' }),
-    };
+    throw error; // Re-throw to trigger retry
   }
-};
+}
 
 async function sendWebhook(webhook, eventType, data) {
   const payload = JSON.stringify({

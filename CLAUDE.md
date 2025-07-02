@@ -7,9 +7,9 @@ You are a principal-level cloud security architect and SaaS platform strategist 
 Compliance deadline API - "Never miss a tax deadline again"
 
 ## 🚀 Live System
-- **API**: https://vmvjp2v1fl.execute-api.ap-south-1.amazonaws.com/test/
+- **API**: https://5jhvtpw59k.execute-api.us-east-1.amazonaws.com/prod/
 - **Docs**: https://d1v4wmxs6wjlqf.cloudfront.net
-- **Region**: ap-south-1
+- **Region**: us-east-1
 
 ## 📊 Current State
 - **Deadlines**: 430 (421 AU, 9 NZ)
@@ -26,7 +26,7 @@ Compliance deadline API - "Never miss a tax deadline again"
 ## 🛠 Quick Commands
 ```bash
 # Deploy everything
-./deploy.sh prod ap-south-1
+cd infrastructure && npm run deploy:all
 
 # Verify deployment
 ./verify-deployment.sh prod
@@ -35,7 +35,7 @@ Compliance deadline API - "Never miss a tax deadline again"
 ./test-api-usage.sh prod YOUR_API_KEY
 
 # Check logs
-aws logs tail /aws/lambda/complical-usage-processor-test --region ap-south-1
+aws logs tail /aws/lambda/complical-api-key-authorizer-prod --region us-east-1
 ```
 
 ## 🏗 Architecture
@@ -74,17 +74,17 @@ infrastructure/lib/
 
 ## ✅ Production Features
 
-### Usage Metering
-- **Fair Billing**: Only 2xx responses count (via CloudWatch filter)
-- **Real-time**: 60-second batch processing (like Stripe)
-- **Deduplication**: Request IDs prevent double counting
-- **Cache Invalidation**: SNS → Lambda subscription pattern
+### Enterprise Security
+- **WAF Protection**: Rate limiting, geo-blocking, SQL/XSS prevention
+- **3-Tier Rate Limiting**: Basic (10/s), Professional (50/s), Enterprise (100/s)
+- **OWASP Headers**: Complete security header implementation
+- **JWT + API Keys**: Dual authentication system
 
-### Security & Performance
-- **API Keys**: SHA-256 hashed, 30-char random generation
-- **Authorization**: Zero-cache policy, context injection
-- **DynamoDB**: UpdateItem with atomic counters
-- **Monitoring**: CloudWatch Dashboard + custom metrics
+### Usage Metering
+- **Fair Billing**: Only 2xx responses count via CloudWatch filter
+- **Real-time**: 60-second Kinesis batch aggregation
+- **Transparent**: X-RateLimit-* headers on every response
+- **Webhook Retry**: SQS with DLQ for reliable notifications
 
 ## 💰 Business Model
 - $10 per 10K calls → 99.6% margin

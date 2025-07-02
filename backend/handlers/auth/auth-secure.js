@@ -16,6 +16,7 @@ const {
   getSessionIdFromCookie,
   createLogoutCookie 
 } = require('../../utils/session-manager');
+const { addSecurityHeaders } = require('../../utils/security-headers');
 
 const cognito = new CognitoIdentityProviderClient({});
 
@@ -103,15 +104,21 @@ exports.handler = async (event) => {
     pathParameters: event.pathParameters,
   }));
   
-  // Security check - ensure request came through API Gateway
-  if (!event.requestContext || !event.requestContext.apiId) {
-    return {
-      statusCode: 403,
+  // Helper function to create responses with security headers
+  const createResponse = (statusCode, body, additionalHeaders = {}) => {
+    return addSecurityHeaders({
+      statusCode,
       headers: {
         'Content-Type': 'application/json',
+        ...additionalHeaders,
       },
-      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
-    };
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    }, event, ENVIRONMENT);
+  };
+  
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return createResponse(403, { error: 'Forbidden - Direct Lambda invocation not allowed' });
   }
   
   // Note: This is an auth handler, so we don't check for authorizer context
