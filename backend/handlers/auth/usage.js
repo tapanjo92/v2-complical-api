@@ -9,6 +9,17 @@ const API_USAGE_TABLE = process.env.API_USAGE_TABLE;
 exports.handler = async (event) => {
   console.log('Usage handler invoked');
   
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return {
+      statusCode: 403,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
+    };
+  }
+  
   // Get the origin from the request
   const origin = event.headers?.origin || event.headers?.Origin;
   const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001', 'https://d1v4wmxs6wjlqf.cloudfront.net'];

@@ -44,6 +44,17 @@ exports.handler = async (event) => {
     pathParameters: event.pathParameters,
   }));
 
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return {
+      statusCode: 403,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
+    };
+  }
+
   // Validate authentication (supports both sessions and JWT)
   const authResult = await validateAuth(event);
   let userEmail;

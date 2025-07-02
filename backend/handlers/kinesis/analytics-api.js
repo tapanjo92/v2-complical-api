@@ -8,6 +8,28 @@ const ANALYTICS_TABLE = process.env.ANALYTICS_TABLE;
 exports.handler = async (event) => {
   console.log('Analytics API invoked:', event.path);
   
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return {
+      statusCode: 403,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
+    };
+  }
+  
+  // Check authorizer context for authenticated endpoints
+  if (!event.requestContext.authorizer?.userEmail) {
+    return {
+      statusCode: 401,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Unauthorized' })
+    };
+  }
+  
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',

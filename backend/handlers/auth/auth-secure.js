@@ -103,6 +103,20 @@ exports.handler = async (event) => {
     pathParameters: event.pathParameters,
   }));
   
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return {
+      statusCode: 403,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
+    };
+  }
+  
+  // Note: This is an auth handler, so we don't check for authorizer context
+  // as this handler itself performs authentication
+  
   const allowedOrigin = getAllowedOrigin(event);
   
   const headers = {

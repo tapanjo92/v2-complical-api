@@ -9,6 +9,20 @@ exports.handler = async (event) => {
     queryStringParameters: event.queryStringParameters,
   }));
   
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return {
+      statusCode: 403,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
+    };
+  }
+  
+  // Note: Email verification endpoint doesn't require authentication
+  // as users need to access it from email links
+  
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',

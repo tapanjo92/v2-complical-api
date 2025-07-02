@@ -9,6 +9,28 @@ const TABLE_NAME = process.env.TABLE_NAME;
 exports.handler = async (event) => {
   console.log('Request:', JSON.stringify(event, null, 2));
   
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return {
+      statusCode: 403,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
+    };
+  }
+  
+  // Check authorizer context for authenticated endpoints
+  if (!event.requestContext.authorizer?.userEmail) {
+    return {
+      statusCode: 401,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Unauthorized' })
+    };
+  }
+  
   // Extract usage information from authorizer context
   const authContext = event.requestContext?.authorizer || {};
   const usageCount = authContext.usageCount || '0';

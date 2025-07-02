@@ -1,6 +1,20 @@
 exports.handler = async (event) => {
   console.log('Health check invoked');
   
+  // Security check - ensure request came through API Gateway
+  if (!event.requestContext || !event.requestContext.apiId) {
+    return {
+      statusCode: 403,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ error: 'Forbidden - Direct Lambda invocation not allowed' })
+    };
+  }
+  
+  // Note: Health endpoint typically doesn't require authentication
+  // so we're not checking for authorizer context
+  
   return {
     statusCode: 200,
     headers: {
