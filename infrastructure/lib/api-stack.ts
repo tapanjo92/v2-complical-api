@@ -203,10 +203,10 @@ export class ApiStack extends cdk.Stack {
     // Grant CloudWatch metrics permissions to enhanced authorizer for usage tracking monitoring
     apiKeyAuthorizerFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: ['cloudwatch:PutMetricData'],
-      resources: ['*'],
+      resources: ['*'], // CloudWatch PutMetricData requires * but we restrict via conditions
       conditions: {
         StringEquals: {
-          'cloudwatch:namespace': 'CompliCal/API'
+          'cloudwatch:namespace': ['CompliCal/API', 'CompliCal/API/Usage']
         }
       }
     }));
@@ -326,16 +326,56 @@ export class ApiStack extends cdk.Stack {
     // V1 endpoints
     const v1 = this.api.root.addResource('v1');
 
+    // Create JWT authorizer Lambda function
+    const jwtAuthorizerFunction = new lambda.Function(this, 'JwtAuthorizerFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'jwt-authorizer.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../backend/handlers/auth')),
+      timeout: cdk.Duration.seconds(3),
+      environment: {
+        SESSIONS_TABLE: props.sessionsTable.tableName,
+        ENVIRONMENT: props.environment,
+      },
+      memorySize: 256,
+      tracing: lambda.Tracing.ACTIVE,
+    });
+
+    // Grant permissions to JWT authorizer
+    props.sessionsTable.grantReadData(jwtAuthorizerFunction);
+
+    // Create JWT authorizer for authenticated endpoints
+    const jwtAuthorizer = new apigateway.RequestAuthorizer(this, 'JwtAuthorizer', {
+      authorizerName: `complical-jwt-authorizer-${props.environment}`,
+      handler: jwtAuthorizerFunction,
+      identitySources: [apigateway.IdentitySource.header('Authorization')],
+      resultsCacheTtl: cdk.Duration.minutes(5), // Cache JWT validation for 5 minutes
+    });
+
     // Auth endpoints
     const auth = v1.addResource('auth');
+    // Public auth endpoints (no auth required for registration/login)
     auth.addResource('register').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
     auth.addResource('login').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
-    auth.addResource('logout').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
-    auth.addResource('refresh').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
-    auth.addResource('change-password').addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+    
+    // Protected auth endpoints (require JWT authentication)
+    auth.addResource('logout').addMethod('POST', new apigateway.LambdaIntegration(authFunction), {
+      authorizer: jwtAuthorizer,
+    });
+    auth.addResource('refresh').addMethod('POST', new apigateway.LambdaIntegration(authFunction), {
+      authorizer: jwtAuthorizer,
+    });
+    auth.addResource('change-password').addMethod('POST', new apigateway.LambdaIntegration(authFunction), {
+      authorizer: jwtAuthorizer,
+    });
+    
+    // Email preferences endpoints (require JWT authentication)
     const emailPrefsResource = auth.addResource('email-preferences');
-    emailPrefsResource.addMethod('GET', new apigateway.LambdaIntegration(authFunction));
-    emailPrefsResource.addMethod('POST', new apigateway.LambdaIntegration(authFunction));
+    emailPrefsResource.addMethod('GET', new apigateway.LambdaIntegration(authFunction), {
+      authorizer: jwtAuthorizer,
+    });
+    emailPrefsResource.addMethod('POST', new apigateway.LambdaIntegration(authFunction), {
+      authorizer: jwtAuthorizer,
+    });
     
     // Email verification endpoint (separate Lambda for better isolation)
     const verifyEmailFunction = new lambda.Function(this, 'VerifyEmailFunction', {
@@ -354,25 +394,43 @@ export class ApiStack extends cdk.Stack {
     // Grant permissions to verify email function
     props.apiKeysTable.grantReadWriteData(verifyEmailFunction);
     
+    // Public endpoint for email verification (needs to be accessible from email links)
     auth.addResource('verify-email').addMethod('GET', new apigateway.LambdaIntegration(verifyEmailFunction));
     
+    // API Keys management endpoints (requires JWT authentication)
     const apiKeysResource = auth.addResource('api-keys');
-    apiKeysResource.addMethod('GET', new apigateway.LambdaIntegration(apiKeysFunction));
-    apiKeysResource.addMethod('POST', new apigateway.LambdaIntegration(apiKeysFunction));
+    apiKeysResource.addMethod('GET', new apigateway.LambdaIntegration(apiKeysFunction), {
+      authorizer: jwtAuthorizer,
+    });
+    apiKeysResource.addMethod('POST', new apigateway.LambdaIntegration(apiKeysFunction), {
+      authorizer: jwtAuthorizer,
+    });
     const apiKeyIdResource = apiKeysResource.addResource('{keyId}');
-    apiKeyIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(apiKeysFunction));
+    apiKeyIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(apiKeysFunction), {
+      authorizer: jwtAuthorizer,
+    });
     
     // Usage endpoint (requires JWT authentication)
     const usageResource = auth.addResource('usage');
-    usageResource.addMethod('GET', new apigateway.LambdaIntegration(usageFunction));
+    usageResource.addMethod('GET', new apigateway.LambdaIntegration(usageFunction), {
+      authorizer: jwtAuthorizer,
+    });
     
     // Webhook endpoints (requires JWT authentication)
     const webhooksResource = auth.addResource('webhooks');
-    webhooksResource.addMethod('GET', new apigateway.LambdaIntegration(webhooksFunction));
-    webhooksResource.addMethod('POST', new apigateway.LambdaIntegration(webhooksFunction));
+    webhooksResource.addMethod('GET', new apigateway.LambdaIntegration(webhooksFunction), {
+      authorizer: jwtAuthorizer,
+    });
+    webhooksResource.addMethod('POST', new apigateway.LambdaIntegration(webhooksFunction), {
+      authorizer: jwtAuthorizer,
+    });
     const webhookIdResource = webhooksResource.addResource('{webhookId}');
-    webhookIdResource.addMethod('PUT', new apigateway.LambdaIntegration(webhooksFunction));
-    webhookIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(webhooksFunction));
+    webhookIdResource.addMethod('PUT', new apigateway.LambdaIntegration(webhooksFunction), {
+      authorizer: jwtAuthorizer,
+    });
+    webhookIdResource.addMethod('DELETE', new apigateway.LambdaIntegration(webhooksFunction), {
+      authorizer: jwtAuthorizer,
+    });
 
     // Custom authorizer - NO CACHING for accurate real-time usage tracking
     const apiKeyAuthorizer = new apigateway.RequestAuthorizer(this, 'ApiKeyAuthorizer', {
